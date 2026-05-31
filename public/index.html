@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>粤讲粤掂 - 粤语学习搭子平台</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation -->
+    <nav id="navbar" style="display:none;">
+      <div class="nav-brand">
+        <span class="nav-lion">🦁</span>
+        <span class="nav-title">粤讲粤掂</span>
+      </div>
+      <div class="nav-links">
+        <a href="#/dashboard" class="nav-link">🏠 主页</a>
+        <a href="#/courses" class="nav-link">📚 课程</a>
+        <a href="#/partners" class="nav-link">🤝 搭子</a>
+        <a href="#/battles" class="nav-link">⚔️ 对战</a>
+        <a href="#/leaderboard" class="nav-link">🏆 排行</a>
+        <a href="#/profile" class="nav-link">👤 我的</a>
+      </div>
+      <div class="nav-user">
+        <span id="nav-user-info"></span>
+        <button class="btn btn-sm btn-outline" onclick="logout()">登出</button>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content"></main>
+
+    <!-- Ada Character -->
+    <div id="ada-bubble" class="ada-bubble" style="display:none;">
+      <div class="ada-avatar">🦁</div>
+      <div class="ada-speech">
+        <p id="ada-text"></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/components.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

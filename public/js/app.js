@@ -1,0 +1,1745 @@
+// ===================== App Router & State =====================
+const App = {
+  currentUser: null,
+  currentPage: '',
+
+  async init() {
+    // Check if logged in
+    try {
+      this.currentUser = await API.getProfile();
+      this.showApp();
+    } catch (e) {
+      this.showLogin();
+    }
+
+    // Handle hash routing
+    window.addEventListener('hashchange', () => this.route());
+    this.route();
+  },
+
+  async route() {
+    const hash = location.hash || '#/dashboard';
+    const route = hash.replace('#', '');
+
+    if (!this.currentUser) {
+      this.showLogin();
+      return;
+    }
+
+    this.currentPage = route;
+    this.updateNav();
+
+    switch (route) {
+      case '/dashboard': await this.renderDashboard(); break;
+      case '/courses': await this.renderCourses(); break;
+      case '/assess': await this.renderAssessment(); break;
+      case '/partners': await this.renderPartners(); break;
+      case '/battles': await this.renderBattles(); break;
+      case '/leaderboard': await this.renderLeaderboard(); break;
+      case '/profile': await this.renderProfile(); break;
+      default:
+        if (route.startsWith('/course/') && route.includes('/practice')) {
+          const courseId = route.split('/')[2];
+          await this.renderPractice(courseId);
+        } else if (route.startsWith('/course/')) {
+          const courseId = route.split('/')[2];
+          await this.renderCourseDetail(courseId);
+        } else if (route.startsWith('/partner/')) {
+          const partnerId = route.split('/')[2];
+          await this.renderPartnerDetail(partnerId);
+        } else if (route.startsWith('/challenge/')) {
+          const challengeId = route.split('/')[2];
+          await this.renderChallenge(challengeId);
+        } else {
+          this.renderDashboard();
+        }
+    }
+  },
+
+  updateNav() {
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.classList.remove('active');
+      if (link.getAttribute('href') === `#${this.currentPage}`) {
+        link.classList.add('active');
+      }
+    });
+
+    const navInfo = document.getElementById('nav-user-info');
+    if (this.currentUser) {
+      navInfo.innerHTML = `${avatarHtml(this.currentUser, 'avatar-sm')} <span>${this.currentUser.nickname}</span>`;
+    }
+  },
+
+  showApp() {
+    document.getElementById('navbar').style.display = 'flex';
+    document.getElementById('main-content').innerHTML = '';
+  },
+
+  showLogin() {
+    document.getElementById('navbar').style.display = 'none';
+    document.getElementById('main-content').innerHTML = '';
+    this.renderLogin();
+  },
+
+  // ===================== LOGIN / REGISTER =====================
+  renderLogin() {
+    const main = document.getElementById('main-content');
+    main.innerHTML = `
+      <div class="login-container">
+        <div class="login-card">
+          <div class="login-logo">🦁</div>
+          <div class="login-title">粤讲粤掂</div>
+          <div class="login-subtitle">商务职场粤语学习搭子平台</div>
+          
+          <div id="login-form">
+            <div class="form-group">
+              <label class="form-label">用户名</label>
+              <input type="text" id="login-username" class="form-input" placeholder="请输入用户名">
+            </div>
+            <div class="form-group">
+              <label class="form-label">密码</label>
+              <input type="password" id="login-password" class="form-input" placeholder="请输入密码">
+            </div>
+            <div id="login-error" class="form-error" style="display:none;"></div>
+            <button class="btn btn-primary btn-lg" style="width:100%;" onclick="App.handleLogin()">
+              🦁 登录
+            </button>
+            <div class="form-toggle mt-16">
+              还没有账号？<a onclick="App.showRegisterForm()">立即注册</a>
+            </div>
+            <div class="mt-16 text-muted" style="font-size:12px;">
+              演示账号: demo / demo123
+            </div>
+          </div>
+
+          <div id="register-form" style="display:none;">
+            <div class="form-group">
+              <label class="form-label">用户名 *</label>
+              <input type="text" id="reg-username" class="form-input" placeholder="请输入用户名">
+            </div>
+            <div class="form-group">
+              <label class="form-label">密码 *</label>
+              <input type="password" id="reg-password" class="form-input" placeholder="至少6位密码">
+            </div>
+            <div class="form-group">
+              <label class="form-label">昵称 *</label>
+              <input type="text" id="reg-nickname" class="form-input" placeholder="你的昵称">
+            </div>
+            <div class="form-group">
+              <label class="form-label">职位</label>
+              <input type="text" id="reg-position" class="form-input" placeholder="如：FICO顾问">
+            </div>
+            <div class="form-group">
+              <label class="form-label">公司</label>
+              <input type="text" id="reg-company" class="form-input" placeholder="如：越秀集团">
+            </div>
+            <div class="form-group">
+              <label class="form-label">粤语基础</label>
+              <select id="reg-base" class="form-select">
+                <option value="none">零基础 - 完全不会</option>
+                <option value="basic">能听懂几句</option>
+                <option value="intermediate">能简单对话</option>
+                <option value="fluent">流利</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">学习目标</label>
+              <input type="text" id="reg-goal" class="form-input" placeholder="如：下个月外派香港">
+            </div>
+            <div id="reg-error" class="form-error" style="display:none;"></div>
+            <button class="btn btn-primary btn-lg" style="width:100%;" onclick="App.handleRegister()">
+              🚀 开始学习
+            </button>
+            <div class="form-toggle mt-16">
+              已有账号？<a onclick="App.showLoginForm()">返回登录</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  showRegisterForm() {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('register-form').style.display = 'block';
+  },
+
+  showLoginForm() {
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('register-form').style.display = 'none';
+  },
+
+  async handleLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    const errorEl = document.getElementById('login-error');
+
+    if (!username || !password) {
+      errorEl.textContent = '请填写用户名和密码';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      const data = await API.login({ username, password });
+      App.currentUser = data.user;
+      App.showApp();
+      App.route();
+      showAda(AdaMessages.login);
+    } catch (e) {
+      errorEl.textContent = e.message;
+      errorEl.style.display = 'block';
+    }
+  },
+
+  async handleRegister() {
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value.trim();
+    const nickname = document.getElementById('reg-nickname').value.trim();
+    const position = document.getElementById('reg-position').value.trim();
+    const company = document.getElementById('reg-company').value.trim();
+    const baseCantonese = document.getElementById('reg-base').value;
+    const learningGoal = document.getElementById('reg-goal').value.trim();
+    const errorEl = document.getElementById('reg-error');
+
+    if (!username || !password || !nickname) {
+      errorEl.textContent = '请填写必填项';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    if (password.length < 6) {
+      errorEl.textContent = '密码至少6位';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      await API.register({ username, password, nickname, baseCantonese, learningGoal, position, company });
+      const data = await API.login({ username, password });
+      App.currentUser = data.user;
+      App.showApp();
+      // New user -> go to assessment
+      location.hash = '#/assess';
+      showAda('早晨！先嚟做个评估，睇下你嘅粤语水平先！');
+    } catch (e) {
+      errorEl.textContent = e.message;
+      errorEl.style.display = 'block';
+    }
+  },
+
+  // ===================== DASHBOARD =====================
+  async renderDashboard() {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const [profile, stats, feed, recommended] = await Promise.all([
+        API.getProfile(),
+        API.getStats(),
+        API.getFeed(),
+        API.getRecommendedCourses()
+      ]);
+
+      const completedPercent = stats.coursesTotal > 0 
+        ? Math.round((stats.coursesCompleted / stats.coursesTotal) * 100) 
+        : 0;
+
+      main.innerHTML = `
+        <div class="page-title">👋 早晨，${profile.nickname}！</div>
+        
+        <div class="dashboard-grid">
+          <div class="stat-card">
+            <div class="stat-icon">📚</div>
+            <div class="stat-info">
+              <h3>${stats.coursesCompleted}/${stats.coursesTotal}</h3>
+              <p>已学课程</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">⭐</div>
+            <div class="stat-info">
+              <h3>${stats.totalScore}</h3>
+              <p>累计积分</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">${getLevelIcon(profile.level)}</div>
+            <div class="stat-info">
+              <h3>${getLevelLabel(profile.level)} L${profile.level}</h3>
+              <p>当前等级</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🤝</div>
+            <div class="stat-info">
+              <h3>${profile.partnerCount}</h3>
+              <p>学习搭子</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-16">
+          <div class="card-header">
+            <span class="card-title">🎯 推荐课程</span>
+            <a href="#/courses" style="font-size:13px;">查看全部 →</a>
+          </div>
+          ${recommended.courses.length === 0 
+            ? `<div class="empty-state"><p>暂无推荐课程，去评估一下你的水平吧！</p>
+               <a href="#/assess" class="btn btn-primary mt-16">开始评估</a></div>`
+            : recommended.courses.slice(0, 4).map(c => courseCardHtml(c)).join('')
+          }
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📡 搭子动态</span>
+          </div>
+          ${feed.length === 0
+            ? `<div class="empty-state">
+                <div class="empty-icon">🤝</div>
+                <h3>还没有动态</h3>
+                <p>添加学习搭子，一起学粤语！</p>
+                <a href="#/partners" class="btn btn-primary mt-16">找搭子</a>
+               </div>`
+            : feed.slice(0, 10).map(f => feedItemHtml(f)).join('')
+          }
+        </div>
+
+        <div class="mt-24 text-center">
+          <a href="#/assess" class="btn btn-outline">📊 重新评估</a>
+        </div>
+      `;
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  // ===================== COURSES =====================
+  async renderCourses() {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const courses = await API.getCourses();
+      
+      // Group by level
+      const grouped = {};
+      courses.forEach(c => {
+        if (!grouped[c.level]) grouped[c.level] = [];
+        grouped[c.level].push(c);
+      });
+
+      let html = `<div class="page-title">📚 课程中心</div>`;
+      html += `<div class="page-subtitle">商务职场粤语，从入门到精通</div>`;
+
+      for (let level = 1; level <= 5; level++) {
+        if (!grouped[level]) continue;
+        const levelCourses = grouped[level];
+        const completed = levelCourses.filter(c => c.progress === 'completed').length;
+
+        html += `
+          <div class="card mb-16">
+            <div class="card-header">
+              <span class="card-title">${getLevelIcon(level)} ${getLevelLabel(level)} — L${level}</span>
+              <span style="font-size:13px;color:var(--text-light);">${completed}/${levelCourses.length} 完成</span>
+            </div>
+            <div class="progress-bar mb-16">
+              <div class="progress-fill" style="width:${Math.round((completed/levelCourses.length)*100)}%"></div>
+            </div>
+            ${levelCourses.map(c => courseCardHtml(c)).join('')}
+          </div>
+        `;
+      }
+
+      main.innerHTML = html;
+
+      // Attach click events
+      main.querySelectorAll('.course-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const courseId = card.dataset.courseId;
+          location.hash = `#/course/${courseId}`;
+        });
+      });
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  // ===================== COURSE DETAIL =====================
+  async renderCourseDetail(courseId) {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const course = await API.getCourse(courseId);
+      const content = course.content;
+
+      main.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <a href="#/courses" style="font-size:14px;">← 返回课程列表</a>
+        </div>
+        
+        <div class="card mb-16">
+          <div class="card-header">
+            <span class="card-title">${course.title}</span>
+            ${levelBadgeHtml(course.level)}
+          </div>
+          <p style="color:var(--text-light);margin-bottom:16px;">${course.description || ''}</p>
+          <span style="font-size:13px;padding:4px 10px;background:#FFF0E6;border-radius:10px;">${course.difficulty_label}</span>
+          
+          ${course.progress === 'completed' ? 
+            `<div class="mt-8"><span class="course-status status-completed">✅ 已完成 - 得分: ${course.score}%</span></div>` : ''}
+        </div>
+
+        <!-- Scenario -->
+        <div class="card course-content-section mb-16">
+          <h3>🎬 情景引入</h3>
+          <div class="dialogue-box">${escapeHtml(content.scenario || content.dialogue || '')}</div>
+        </div>
+
+        <!-- Vocabulary -->
+        <div class="card course-content-section mb-16">
+          <h3>📝 核心词汇</h3>
+          <div class="vocab-grid">
+            ${(content.vocabulary || []).map(v => `
+              <div class="vocab-item">
+                <div class="vocab-jyutping">${escapeHtml(v.jyutping || '')}</div>
+                <div class="vocab-word">${escapeHtml(v.word)}</div>
+                <div class="vocab-meaning">${escapeHtml(v.meaning)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Grammar -->
+        ${content.grammar && content.grammar.length > 0 ? `
+          <div class="card course-content-section mb-16">
+            <h3>📖 语法/表达</h3>
+            ${content.grammar.map(g => `
+              <div class="grammar-item">
+                <div class="grammar-pattern">${escapeHtml(g.pattern)}</div>
+                <div style="font-size:13px;color:var(--text-light);margin:4px 0;">${escapeHtml(g.explanation)}</div>
+                <div class="grammar-example">💬 ${escapeHtml(g.example)}</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <!-- Culture -->
+        ${content.culture ? `
+          <div class="card course-content-section mb-16">
+            <h3>💡 文化小知识</h3>
+            <div class="culture-box">${escapeHtml(content.culture)}</div>
+          </div>
+        ` : ''}
+
+        <!-- Dialogue -->
+        ${content.dialogue ? `
+          <div class="card course-content-section mb-16">
+            <h3>💬 示例对话</h3>
+            <div class="dialogue-box">${escapeHtml(content.dialogue)}</div>
+          </div>
+        ` : ''}
+
+        <!-- Actions -->
+        <div class="flex gap-16 mb-24">
+          <button class="btn btn-primary btn-lg" onclick="App.startCourse(${courseId})" 
+            ${course.progress === 'completed' ? 'disabled' : ''}>
+            ${course.progress === 'completed' ? '✅ 已完成' : course.progress === 'in_progress' ? '📖 继续学习' : '📖 开始学习'}
+          </button>
+          <button class="btn btn-success btn-lg" onclick="location.hash='#/course/${courseId}/practice'">
+            ✏️ 课后练习
+          </button>
+          <button class="btn btn-outline btn-lg" onclick="App.createChallengeFromCourse(${courseId})">
+            ⚔️ 发起对战
+          </button>
+        </div>
+      `;
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  async startCourse(courseId) {
+    try {
+      await API.startCourse(courseId);
+      showToast('开始学习！');
+      showAda(AdaMessages.welcome.replace('%@nickname%', App.currentUser.nickname));
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async createChallengeFromCourse(courseId) {
+    try {
+      const result = await API.createChallenge(courseId);
+      const main = document.getElementById('main-content');
+      
+      // Show challenge code modal
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal">
+          <h3>⚔️ 发起对战</h3>
+          <p style="margin-bottom:16px;">复制以下对战码，发送给你的搭子</p>
+          <div class="challenge-code">
+            <div class="code">${result.challengeCode}</div>
+          </div>
+          <p style="font-size:13px;color:var(--text-light);">对战ID: ${result.challengeId}</p>
+          <div class="modal-actions">
+            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">关闭</button>
+            <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${result.challengeCode}');showToast('已复制对战码！');">📋 复制</button>
+            <button class="btn btn-success" onclick="location.hash='#/challenge/${result.challengeId}';this.closest('.modal-overlay').remove()">进入对战</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+      });
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  // ===================== PRACTICE =====================
+  async renderPractice(courseId) {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const questions = await API.getPracticeQuestions(courseId);
+
+      main.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <a href="#/course/${courseId}" style="font-size:14px;">← 返回课程</a>
+        </div>
+        <div class="page-title">✏️ 课后练习</div>
+        <div class="page-subtitle">共 ${questions.length} 题，认真作答哦！</div>
+        <div id="practice-questions"></div>
+        <div id="practice-result" style="display:none;"></div>
+        <div class="text-center mt-24 mb-24">
+          <button class="btn btn-primary btn-lg" id="submit-practice" onclick="App.submitPractice(${courseId})">📝 提交答案</button>
+        </div>
+      `;
+
+      const container = document.getElementById('practice-questions');
+      questions.forEach((q, i) => {
+        const card = document.createElement('div');
+        card.className = 'question-card';
+        card.innerHTML = `
+          <div class="question-number">第 ${i + 1} 题 · ${q.type === 'fill' ? '填空' : '选择'}</div>
+          <div class="question-text">${escapeHtml(q.question)}</div>
+          ${q.type === 'fill' 
+            ? `<input type="text" class="fill-input" data-qid="${q.id}" placeholder="请输入答案...">
+               ${q.hint ? `<p style="font-size:12px;color:var(--text-muted);margin-top:4px;">提示：${escapeHtml(q.hint)}</p>` : ''}`
+            : `<div class="option-list">
+                ${q.options.map((opt, oi) => `
+                  <div class="option-item" data-qid="${q.id}" data-oi="${oi}">
+                    ${String.fromCharCode(65 + oi)}. ${escapeHtml(opt)}
+                  </div>
+                `).join('')}
+               </div>`
+          }
+          <div class="feedback-box" style="display:none;"></div>
+        `;
+
+        // Add click handlers for options
+        card.querySelectorAll('.option-item').forEach(opt => {
+          opt.addEventListener('click', () => {
+            const qid = opt.dataset.qid;
+            card.querySelectorAll('.option-item').forEach(o => {
+              if (o.dataset.qid === qid) o.classList.remove('selected');
+            });
+            opt.classList.add('selected');
+          });
+        });
+
+        container.appendChild(card);
+      });
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  async submitPractice(courseId) {
+    const answers = [];
+    const questionCards = document.querySelectorAll('.question-card');
+
+    questionCards.forEach((card, i) => {
+      const selected = card.querySelector('.option-item.selected');
+      const fillInput = card.querySelector('.fill-input');
+
+      if (fillInput) {
+        answers.push({
+          questionId: parseInt(fillInput.dataset.qid),
+          answer: fillInput.value.trim()
+        });
+      } else if (selected) {
+        answers.push({
+          questionId: parseInt(selected.dataset.qid),
+          selectedIndex: parseInt(selected.dataset.oi)
+        });
+      }
+    });
+
+    if (answers.length < questionCards.length) {
+      showToast('请完成所有题目', 'error');
+      return;
+    }
+
+    try {
+      const result = await API.submitPractice(courseId, answers);
+      
+      // Show feedback for each question
+      result.results.forEach((r, i) => {
+        const card = questionCards[i];
+        const feedback = card.querySelector('.feedback-box');
+        const allOptions = card.querySelectorAll('.option-item');
+        const fillInput = card.querySelector('.fill-input');
+
+        if (fillInput) {
+          fillInput.disabled = true;
+          if (r.isCorrect) {
+            fillInput.style.borderColor = 'var(--success)';
+            fillInput.style.background = '#D5F5E3';
+          } else {
+            fillInput.style.borderColor = 'var(--danger)';
+            fillInput.style.background = '#FDEDEC';
+          }
+        }
+
+        allOptions.forEach(opt => {
+          opt.style.pointerEvents = 'none';
+          const oi = parseInt(opt.dataset.oi);
+          if (r.isCorrect && opt.classList.contains('selected')) {
+            opt.classList.add('correct');
+          } else if (!r.isCorrect && opt.classList.contains('selected')) {
+            opt.classList.add('incorrect');
+          }
+        });
+
+        feedback.style.display = 'block';
+        feedback.className = `feedback-box ${r.isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`;
+        feedback.innerHTML = r.isCorrect 
+          ? '✅ 正确！' + (r.explanation ? ` — ${escapeHtml(r.explanation)}` : '')
+          : `❌ 不正确。正确答案：${escapeHtml(r.correctAnswer || '')}${r.explanation ? ` — ${escapeHtml(r.explanation)}` : ''}`;
+      });
+
+      // Show result
+      const resultDiv = document.getElementById('result-display') || document.createElement('div');
+      resultDiv.id = 'result-display';
+      const scoreClass = result.score >= 80 ? 'score-high' : result.score >= 60 ? 'score-mid' : 'score-low';
+      
+      const existingResult = document.getElementById('practice-result');
+      existingResult.style.display = 'block';
+      existingResult.innerHTML = `
+        <div class="card">
+          <div class="score-display">
+            <div class="score-circle ${scoreClass}">${result.score}%</div>
+            <h3>${result.correctCount}/${result.totalQuestions} 正确</h3>
+            <p style="color:var(--text-light);">
+              ${result.score >= 80 ? '🎉 太棒了！你已经掌握了这课内容！' : 
+                result.score >= 60 ? '💪 不错！再复习一下会更好！' : 
+                '📚 继续加油！建议重新学习课程内容。'}
+            </p>
+            <div class="flex-center gap-16 mt-16">
+              <button class="btn btn-outline" onclick="location.hash='#/course/${courseId}'">返回课程</button>
+              <button class="btn btn-primary" onclick="location.hash='#/course/${courseId}/practice'">重新练习</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('submit-practice').style.display = 'none';
+
+      // Complete course and show Ada
+      await API.completeCourse(courseId, result.score);
+      
+      if (result.score >= 80) {
+        showAda(AdaMessages.practice_perfect);
+      } else if (result.score < 50) {
+        showAda(AdaMessages.practice_bad);
+      } else {
+        showAda(AdaMessages.practice_ok);
+      }
+
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  // ===================== ASSESSMENT =====================
+  async renderAssessment() {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const questions = await API.getAssessmentQuestions();
+
+      main.innerHTML = `
+        <div class="page-title">📊 能力评估</div>
+        <div class="page-subtitle">10道职场粤语测试题，看看你的水平在哪？</div>
+        <div id="assessment-questions"></div>
+        <div class="text-center mt-24 mb-24">
+          <button class="btn btn-primary btn-lg" id="submit-assessment" onclick="App.submitAssessment()">📝 提交评估</button>
+        </div>
+      `;
+
+      const container = document.getElementById('assessment-questions');
+      questions.forEach((q, i) => {
+        const dimLabels = { listening: '👂 听力', speaking: '🗣️ 情景', reading: '📖 阅读', vocabulary: '✍️ 词汇' };
+        const card = document.createElement('div');
+        card.className = 'question-card';
+        card.innerHTML = `
+          <div class="question-number">第 ${i + 1} 题 · ${dimLabels[q.dimension] || q.dimension}</div>
+          <div class="question-text">${escapeHtml(q.question)}</div>
+          <div class="option-list">
+            ${q.options.map((opt, oi) => `
+              <div class="option-item" data-qid="${q.id}" data-oi="${oi}">
+                ${String.fromCharCode(65 + oi)}. ${escapeHtml(opt)}
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        card.querySelectorAll('.option-item').forEach(opt => {
+          opt.addEventListener('click', () => {
+            card.querySelectorAll('.option-item').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+          });
+        });
+
+        container.appendChild(card);
+      });
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  async submitAssessment() {
+    const answers = [];
+    const questionCards = document.querySelectorAll('#assessment-questions .question-card');
+
+    questionCards.forEach(card => {
+      const selected = card.querySelector('.option-item.selected');
+      if (selected) {
+        answers.push({
+          questionId: parseInt(selected.dataset.qid),
+          selectedIndex: parseInt(selected.dataset.oi)
+        });
+      }
+    });
+
+    if (answers.length < questionCards.length) {
+      showToast('请完成所有题目', 'error');
+      return;
+    }
+
+    try {
+      const result = await API.submitAssessment(answers);
+      const main = document.getElementById('main-content');
+
+      const scoreClass = result.score >= 80 ? 'score-high' : result.score >= 50 ? 'score-mid' : 'score-low';
+
+      main.innerHTML = `
+        <div class="page-title">📊 评估结果</div>
+        
+        <div class="card mb-16">
+          <div class="score-display">
+            <div class="score-circle ${scoreClass}">${result.score}</div>
+            <h2>${getLevelIcon(result.level)} ${result.levelLabel} — L${result.level}</h2>
+            <p style="color:var(--text-light);margin-bottom:16px;">${result.levelState}</p>
+            <p style="font-size:14px;">答对 ${result.correctCount}/${result.totalQuestions} 题</p>
+          </div>
+        </div>
+
+        <div class="card mb-16">
+          <h3 style="margin-bottom:16px;">📊 各维度分析</h3>
+          ${renderDimensionScores(result.details)}
+        </div>
+
+        <div class="text-center mb-24">
+          <button class="btn btn-primary btn-lg" onclick="location.hash='#/courses'">📚 查看推荐课程</button>
+          <button class="btn btn-outline btn-lg mt-8" onclick="location.hash='#/assess'" style="margin-left:8px;">🔄 重新评估</button>
+        </div>
+      `;
+
+      if (result.score >= 80) {
+        showAda(AdaMessages.assess_good);
+      } else if (result.score >= 40) {
+        showAda(AdaMessages.assess_ok);
+      } else {
+        showAda(AdaMessages.assess_beginner);
+      }
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  // ===================== PARTNERS =====================
+  async renderPartners() {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    // Check if joining via invite code
+    const urlParams = new URLSearchParams(location.hash.includes('?') ? location.hash.split('?')[1] : '');
+    const joinCode = urlParams.get('join');
+
+    try {
+      const [partners, recommended] = await Promise.all([
+        API.getPartners(),
+        API.recommendPartners()
+      ]);
+
+      let html = `
+        <div class="page-title">🤝 学习搭子</div>
+        
+        <div class="tabs">
+          <button class="tab active" onclick="App.switchPartnerTab('my', this)">我的搭子 (${partners.filter(p => p.status === 'accepted').length})</button>
+          <button class="tab" onclick="App.switchPartnerTab('recommend', this)">推荐搭子</button>
+          <button class="tab" onclick="App.switchPartnerTab('invite', this)">邀请搭子</button>
+          <button class="tab" onclick="App.switchPartnerTab('requests', this)">搭子请求</button>
+        </div>
+
+        <div id="partner-tab-my">
+          ${partners.filter(p => p.status === 'accepted').length === 0
+            ? `<div class="empty-state">
+                <div class="empty-icon">🤝</div>
+                <h3>还没有学习搭子</h3>
+                <p>找一个搭子一起学粤语，进步更快！</p>
+               </div>`
+            : partners.filter(p => p.status === 'accepted').map(p => partnerCardHtml(p)).join('')
+          }
+        </div>
+
+        <div id="partner-tab-recommend" style="display:none;">
+          ${recommended.length === 0
+            ? `<div class="empty-state"><p>暂时没有推荐搭子</p></div>`
+            : recommended.map(u => `
+              <div class="partner-card">
+                ${avatarHtml(u)}
+                <div class="partner-info">
+                  <h3>${escapeHtml(u.nickname)}</h3>
+                  <div class="partner-meta">
+                    ${levelBadgeHtml(u.level)}
+                    <span style="margin-left:8px;">📚 ${u.courses_completed || 0} 课</span>
+                    <span style="margin-left:8px;">⭐ ${u.score} 分</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">最近活跃: ${timeAgo(u.last_active)}</div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="App.sendPartnerRequest(${u.id})">交个朋友</button>
+              </div>
+            `).join('')
+          }
+        </div>
+
+        <div id="partner-tab-invite" style="display:none;">
+          <div class="card">
+            <h3 style="margin-bottom:16px;">📨 邀请搭子</h3>
+            <p style="color:var(--text-light);margin-bottom:16px;">生成邀请码，发送给你的同事或朋友</p>
+            <button class="btn btn-primary" onclick="App.generateInviteCode()">🎫 生成邀请码</button>
+            <div id="invite-code-display" style="margin-top:16px;"></div>
+            ${joinCode ? `
+              <div style="margin-top:16px;padding:12px;background:#FFF0E6;border-radius:10px;">
+                <p>检测到邀请码: <strong>${joinCode}</strong></p>
+                <button class="btn btn-success btn-sm mt-8" onclick="App.joinViaCode('${joinCode}')">加入</button>
+              </div>
+            ` : `
+              <div class="mt-16">
+                <label class="form-label">输入邀请码加入</label>
+                <div class="flex gap-8">
+                  <input type="text" id="join-code-input" class="form-input" placeholder="输入邀请码" style="flex:1;">
+                  <button class="btn btn-success" onclick="App.joinViaCode()">加入</button>
+                </div>
+              </div>
+            `}
+          </div>
+        </div>
+
+        <div id="partner-tab-requests" style="display:none;">
+          ${partners.filter(p => p.status === 'pending').length === 0
+            ? `<div class="empty-state"><p>没有待处理的请求</p></div>`
+            : partners.filter(p => p.status === 'pending').map(p => `
+              <div class="partner-card">
+                ${avatarHtml(p)}
+                <div class="partner-info">
+                  <h3>${escapeHtml(p.nickname)}</h3>
+                  <p style="font-size:13px;color:var(--text-light);">
+                    ${p.direction === 'received' ? '想和你成为搭子' : '已发送请求'}
+                  </p>
+                </div>
+                ${p.direction === 'received' ? `
+                  <div class="flex gap-8">
+                    <button class="btn btn-success btn-sm" onclick="App.respondPartner(${p.relation_id}, 'accept')">接受</button>
+                    <button class="btn btn-danger btn-sm" onclick="App.respondPartner(${p.relation_id}, 'reject')">拒绝</button>
+                  </div>
+                ` : `<span style="font-size:12px;color:var(--text-muted);">等待中</span>`}
+              </div>
+            `).join('')
+          }
+        </div>
+      `;
+
+      main.innerHTML = html;
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  switchPartnerTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    ['my', 'recommend', 'invite', 'requests'].forEach(t => {
+      const div = document.getElementById(`partner-tab-${t}`);
+      if (div) div.style.display = t === tab ? 'block' : 'none';
+    });
+  },
+
+  async sendPartnerRequest(userId) {
+    try {
+      await API.requestPartner(userId);
+      showToast('已发送搭子请求！');
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async respondPartner(relationId, action) {
+    try {
+      await API.respondPartner(relationId, action);
+      showToast(action === 'accept' ? '已成为搭子！' : '已拒绝');
+      showAda(AdaMessages.found_partner);
+      location.reload();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async generateInviteCode() {
+    try {
+      const result = await API.invitePartner();
+      const display = document.getElementById('invite-code-display');
+      display.innerHTML = `
+        <div class="challenge-code">
+          <p style="font-size:13px;color:var(--text-light);margin-bottom:8px;">分享此邀请码给你的朋友</p>
+          <div class="code">${result.inviteCode}</div>
+        </div>
+        <button class="btn btn-outline btn-sm mt-8" onclick="navigator.clipboard.writeText('${result.inviteCode}');showToast('已复制！')">📋 复制邀请码</button>
+      `;
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async joinViaCode(code) {
+    const inputCode = code || document.getElementById('join-code-input')?.value.trim();
+    if (!inputCode) {
+      showToast('请输入邀请码', 'error');
+      return;
+    }
+    try {
+      await API.joinPartner(inputCode);
+      showToast('成功加入！你们现在是搭子了！');
+      showAda(AdaMessages.found_partner);
+      location.reload();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  // ===================== PARTNER DETAIL =====================
+  async renderPartnerDetail(partnerId) {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const [partners, feed, courses] = await Promise.all([
+        API.getPartners(),
+        API.getPartnerFeed(partnerId),
+        API.getCourses()
+      ]);
+
+      const partner = partners.find(p => p.id === parseInt(partnerId));
+      if (!partner) {
+        showError(main, '搭子不存在');
+        return;
+      }
+
+      const completedCourses = feed.filter(f => f.action === 'complete_course');
+
+      main.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <a href="#/partners" style="font-size:14px;">← 返回搭子列表</a>
+        </div>
+
+        <div class="card mb-16 text-center">
+          ${avatarHtml(partner, 'avatar-lg')}
+          <h2 style="margin-top:12px;">${escapeHtml(partner.nickname)}</h2>
+          ${levelBadgeHtml(partner.level)}
+          <p style="margin-top:8px;color:var(--text-light);">⭐ ${partner.score} 分</p>
+        </div>
+
+        <div class="card mb-16">
+          <h3 style="margin-bottom:16px;">📡 学习动态</h3>
+          ${feed.length === 0
+            ? `<div class="empty-state"><p>暂无动态</p></div>`
+            : feed.map(f => feedItemHtml(f)).join('')
+          }
+        </div>
+
+        <div class="card mb-16">
+          <h3 style="margin-bottom:16px;">⚔️ 发起对战</h3>
+          <p style="color:var(--text-light);margin-bottom:12px;">选一课你们都学过的课程发起对战</p>
+          <select id="challenge-course-select" class="form-select mb-8">
+            <option value="">选择课程...</option>
+            ${courses.map(c => `<option value="${c.id}">L${c.level} - ${escapeHtml(c.title)}</option>`).join('')}
+          </select>
+          <button class="btn btn-primary" onclick="App.challengePartner(${partnerId})">发起对战</button>
+        </div>
+
+        <button class="btn btn-danger" style="width:100%;" onclick="App.removePartner(${partner.relation_id})">
+          解除搭子关系
+        </button>
+      `;
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  async challengePartner(partnerId) {
+    const courseId = document.getElementById('challenge-course-select')?.value;
+    if (!courseId) {
+      showToast('请选择课程', 'error');
+      return;
+    }
+    try {
+      const result = await API.createChallenge(parseInt(courseId));
+      location.hash = `#/challenge/${result.challengeId}`;
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async removePartner(relationId) {
+    if (!confirm('确定要解除搭子关系吗？')) return;
+    try {
+      await API.deletePartner(relationId);
+      showToast('已解除搭子关系');
+      location.hash = '#/partners';
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  // ===================== CHALLENGE =====================
+  async renderChallenge(challengeId) {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const challenge = await API.getChallenge(challengeId);
+      const questions = await API.getPracticeQuestions(challenge.course_id);
+      const userId = App.currentUser.id;
+
+      const isChallenger = challenge.challenger_id === userId;
+      const isOpponent = challenge.opponent_id === userId;
+      const isParticipant = isChallenger || isOpponent;
+
+      if (challenge.status === 'pending') {
+        main.innerHTML = `
+          <div class="page-title">⚔️ 对战</div>
+          <div class="card text-center">
+            <h3>${escapeHtml(challenge.course_title)}</h3>
+            <p style="color:var(--text-light);">L${challenge.course_level}</p>
+            
+            <div class="vs-display">
+              <div class="vs-player">
+                ${avatarHtml({ nickname: challenge.challenger_name, avatar_color: challenge.challenger_avatar }, 'avatar-lg')}
+                <h3>${escapeHtml(challenge.challenger_name)}</h3>
+                <p style="font-size:13px;color:var(--text-muted);">发起人</p>
+              </div>
+              <div class="vs-vs">VS</div>
+              <div class="vs-player">
+                <div class="avatar avatar-lg" style="background:var(--text-muted);">?</div>
+                <h3>等待加入</h3>
+              </div>
+            </div>
+
+            <div class="challenge-code">
+              <p style="font-size:13px;color:var(--text-light);margin-bottom:8px;">对战码</p>
+              <div class="code">${challenge.challenge_code || challengeId}</div>
+            </div>
+
+            ${!isChallenger ? `
+              <button class="btn btn-primary btn-lg mt-16" onclick="App.joinChallenge(${challengeId})">加入对战</button>
+            ` : `
+              <p style="color:var(--text-muted);">等待搭子加入...</p>
+              <button class="btn btn-outline mt-8" onclick="location.reload()">刷新</button>
+            `}
+          </div>
+        `;
+      } else if (challenge.status === 'active' && isParticipant) {
+        // Active challenge - render questions
+        const hasSubmitted = isChallenger ? challenge.challenger_score > 0 : challenge.opponent_score > 0;
+
+        if (hasSubmitted) {
+          main.innerHTML = `
+            <div class="page-title">⚔️ 对战进行中</div>
+            <div class="card text-center">
+              <p style="font-size:18px;margin-bottom:16px;">你已提交答案，等待对方完成...</p>
+              <div class="spinner"></div>
+              <button class="btn btn-outline mt-16" onclick="location.reload()">刷新状态</button>
+            </div>
+          `;
+        } else {
+          main.innerHTML = `
+            <div class="page-title">⚔️ 对战答题</div>
+            <div class="page-subtitle">${escapeHtml(challenge.course_title)} · 共 ${questions.length} 题</div>
+            <div id="challenge-questions"></div>
+            <div class="text-center mt-24 mb-24">
+              <button class="btn btn-primary btn-lg" onclick="App.submitChallenge(${challengeId})">提交对战</button>
+            </div>
+          `;
+
+          const container = document.getElementById('challenge-questions');
+          questions.forEach((q, i) => {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+            card.innerHTML = `
+              <div class="question-number">第 ${i + 1} 题</div>
+              <div class="question-text">${escapeHtml(q.question)}</div>
+              ${q.type === 'fill'
+                ? `<input type="text" class="fill-input" data-qid="${q.id}" placeholder="请输入答案...">`
+                : `<div class="option-list">
+                    ${q.options.map((opt, oi) => `
+                      <div class="option-item" data-qid="${q.id}" data-oi="${oi}">
+                        ${String.fromCharCode(65 + oi)}. ${escapeHtml(opt)}
+                      </div>
+                    `).join('')}
+                   </div>`
+              }
+            `;
+
+            card.querySelectorAll('.option-item').forEach(opt => {
+              opt.addEventListener('click', () => {
+                card.querySelectorAll('.option-item').forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+              });
+            });
+
+            container.appendChild(card);
+          });
+        }
+      } else if (challenge.status === 'completed') {
+        const isWinner = challenge.winner_id === userId;
+        const isDraw = !challenge.winner_id;
+        
+        main.innerHTML = `
+          <div class="page-title">⚔️ 对战结果</div>
+          <div class="card">
+            <div class="vs-display">
+              <div class="vs-player">
+                ${avatarHtml({ nickname: challenge.challenger_name, avatar_color: challenge.challenger_avatar }, 'avatar-lg')}
+                <h3>${escapeHtml(challenge.challenger_name)}</h3>
+                <div class="score">${challenge.challenger_score}%</div>
+                <div class="vs-winner ${challenge.winner_id === challenge.challenger_id ? 'win' : 'lose'}">
+                  ${challenge.winner_id === challenge.challenger_id ? '🏆 胜利' : challenge.winner_id ? '再接再厉' : '🤝'}
+                </div>
+              </div>
+              <div class="vs-vs">VS</div>
+              <div class="vs-player">
+                ${avatarHtml({ nickname: challenge.opponent_name || '?', avatar_color: challenge.opponent_avatar || '#BDC3C7' }, 'avatar-lg')}
+                <h3>${escapeHtml(challenge.opponent_name || '?')}</h3>
+                <div class="score">${challenge.opponent_score}%</div>
+                <div class="vs-winner ${challenge.winner_id === challenge.opponent_id ? 'win' : challenge.winner_id ? 'lose' : 'draw'}">
+                  ${challenge.winner_id === challenge.opponent_id ? '🏆 胜利' : challenge.winner_id ? '再接再厉' : '🤝 平局'}
+                </div>
+              </div>
+            </div>
+            <div class="text-center mt-16">
+              ${isWinner ? '<p style="font-size:18px;color:var(--success);font-weight:700;">🎉 恭喜你赢了！</p>' :
+                isDraw ? '<p style="font-size:18px;color:var(--secondary);font-weight:700;">🤝 平局！</p>' :
+                '<p style="font-size:18px;color:var(--text-light);font-weight:700;">💪 再接再厉！</p>'}
+              <button class="btn btn-primary mt-16" onclick="location.hash='#/courses'">继续学习</button>
+            </div>
+          </div>
+        `;
+
+        if (isWinner) showAda(AdaMessages.challenge_win);
+        else if (!isDraw) showAda(AdaMessages.challenge_lose);
+      } else {
+        main.innerHTML = `<div class="empty-state"><p>你不在这个对战中</p></div>`;
+      }
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  async joinChallenge(challengeId) {
+    try {
+      await API.joinChallenge(challengeId);
+      location.reload();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async submitChallenge(challengeId) {
+    const answers = [];
+    const questionCards = document.querySelectorAll('#challenge-questions .question-card');
+
+    questionCards.forEach(card => {
+      const selected = card.querySelector('.option-item.selected');
+      const fillInput = card.querySelector('.fill-input');
+
+      if (fillInput) {
+        answers.push({
+          questionId: parseInt(fillInput.dataset.qid),
+          answer: fillInput.value.trim()
+        });
+      } else if (selected) {
+        answers.push({
+          questionId: parseInt(selected.dataset.qid),
+          selectedIndex: parseInt(selected.dataset.oi)
+        });
+      }
+    });
+
+    if (answers.length < questionCards.length) {
+      showToast('请完成所有题目', 'error');
+      return;
+    }
+
+    try {
+      await API.submitChallenge(challengeId, answers);
+      showToast('已提交！');
+      location.reload();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  // ===================== BATTLES CENTER =====================
+  async renderBattles() {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const [myChallenges, partners, courses, invitations] = await Promise.all([
+        API.getMyChallenges(),
+        API.getPartners(),
+        API.getCourses(),
+        API.getChallengeInvitations().catch(() => [])
+      ]);
+
+      const pending = myChallenges.filter(c => c.status === 'pending');
+      const active = myChallenges.filter(c => c.status === 'active');
+      const completed = myChallenges.filter(c => c.status === 'completed');
+      const acceptedPartners = partners.filter(p => p.status === 'accepted');
+
+      main.innerHTML = `
+        <div class="page-title">⚔️ 对战中心</div>
+        
+        <div class="tabs">
+          <button class="tab active" onclick="App.switchBattleTab('arena', this)">🏟️ 对战广场</button>
+          <button class="tab" onclick="App.switchBattleTab('active', this)">🔥 进行中 (${active.length})</button>
+          <button class="tab" onclick="App.switchBattleTab('history', this)">📜 历史记录 (${completed.length})</button>
+        </div>
+
+        <!-- Arena Tab: Create + Join -->
+        <div id="battle-tab-arena">
+          <!-- Invitations from partners -->
+          ${invitations.length > 0 ? `
+            <div class="card mb-16" style="border:2px solid var(--primary);">
+              <h3 style="margin-bottom:12px;">📩 来自搭子的对战邀请</h3>
+              ${invitations.map(c => `
+                <div class="battle-card" style="background:#FFF0E6;border-radius:8px;">
+                  <div class="battle-card-info">
+                    <div style="font-weight:600;">${escapeHtml(c.course_title)} (L${c.course_level})</div>
+                    <div style="font-size:13px;color:var(--text-light);">
+                      ${avatarHtml({ nickname: c.challenger_name, avatar_color: c.challenger_avatar }, 'avatar-sm')}
+                      <span style="margin-left:6px;">${escapeHtml(c.challenger_name)} 向你发起对战</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);">对战码: <strong>${c.challenge_code || c.id}</strong> · ${timeAgo(c.created_at)}</div>
+                  </div>
+                  <button class="btn btn-success btn-sm" onclick="App.joinChallenge(${c.id})">接受对战</button>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Quick Start: Challenge a partner -->
+          <div class="card mb-16">
+            <h3 style="margin-bottom:12px;">🎯 向搭子发起对战</h3>
+            ${acceptedPartners.length === 0 
+              ? `<p style="color:var(--text-light);">你还没有搭子，<a href="#/partners">去找一个吧</a>！</p>`
+              : `<div class="partner-challenge-grid">
+                  ${acceptedPartners.map(p => `
+                    <div class="partner-challenge-item" onclick="App.quickChallengePartner(${p.id}, '${escapeHtml(p.nickname).replace(/'/g, "\\'")}')">
+                      ${avatarHtml(p, 'avatar-sm')}
+                      <div style="flex:1;">
+                        <div style="font-weight:600;font-size:14px;">${escapeHtml(p.nickname)}</div>
+                        <div style="font-size:12px;color:var(--text-light);">${getLevelLabel(p.level)} L${p.level} · ⭐ ${p.score}</div>
+                      </div>
+                      <span style="font-size:18px;">⚔️</span>
+                    </div>
+                  `).join('')}
+                </div>`
+            }
+          </div>
+
+          <!-- Join by Code -->
+          <div class="card mb-16">
+            <h3 style="margin-bottom:12px;">🔑 输入对战码加入</h3>
+            <div class="flex gap-8">
+              <input type="text" id="battle-code-input" class="form-input" placeholder="输入对战码..." style="flex:1;">
+              <button class="btn btn-primary" onclick="App.joinBattleByCode()">加入对战</button>
+            </div>
+          </div>
+
+          <!-- Pending Challenges (my own) -->
+          ${pending.length > 0 ? `
+            <div class="card mb-16">
+              <h3 style="margin-bottom:12px;">⏳ 我发起的对战</h3>
+              ${pending.map(c => `
+                <div class="battle-card">
+                  <div class="battle-card-info">
+                    <div style="font-weight:600;">${escapeHtml(c.course_title)} (L${c.course_level})</div>
+                    <div style="font-size:13px;color:var(--text-light);">
+                      对战码: <strong>${c.challenge_code || c.id}</strong>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);">${timeAgo(c.created_at)}</div>
+                  </div>
+                  <span style="font-size:12px;color:var(--text-muted);">等待搭子加入...</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div class="empty-state"><p>暂无待加入的对战</p></div>'}
+        </div>
+
+        <!-- Active Tab -->
+        <div id="battle-tab-active" style="display:none;">
+          ${active.length === 0
+            ? '<div class="empty-state"><div class="empty-icon">⚔️</div><h3>没有进行中的对战</h3><p>发起一场对战吧！</p></div>'
+            : active.map(c => {
+              const isChallenger = c.challenger_id === App.currentUser.id;
+              const hasSubmitted = isChallenger ? c.challenger_score > 0 : c.opponent_score > 0;
+              return `
+                <div class="battle-card ${hasSubmitted ? 'submitted' : ''}">
+                  <div class="battle-card-info">
+                    <div style="font-weight:600;">${escapeHtml(c.course_title)} (L${c.course_level})</div>
+                    <div style="font-size:13px;color:var(--text-light);">
+                      ${isChallenger ? `对手: ${escapeHtml(c.opponent_name || '?')}` : `发起人: ${escapeHtml(c.challenger_name)}`}
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);">
+                      ${hasSubmitted ? '✅ 已提交 · 等待对方完成...' : '⏳ 请完成答题'}
+                    </div>
+                  </div>
+                  ${!hasSubmitted 
+                    ? `<button class="btn btn-primary btn-sm" onclick="location.hash='#/challenge/${c.id}'">开始答题</button>`
+                    : `<button class="btn btn-outline btn-sm" onclick="location.hash='#/challenge/${c.id}'">查看状态</button>`
+                  }
+                </div>
+              `;
+            }).join('')
+          }
+        </div>
+
+        <!-- History Tab -->
+        <div id="battle-tab-history" style="display:none;">
+          ${completed.length === 0
+            ? '<div class="empty-state"><div class="empty-icon">📜</div><h3>还没有对战记录</h3><p>完成任务后回来看看吧！</p></div>'
+            : completed.map(c => {
+              const isWinner = c.winner_id === App.currentUser.id;
+              const isDraw = !c.winner_id;
+              return `
+                <div class="battle-card ${isWinner ? 'win' : isDraw ? 'draw' : 'lose'}">
+                  <div class="battle-card-info">
+                    <div style="font-weight:600;">${escapeHtml(c.course_title)} (L${c.course_level})</div>
+                    <div style="font-size:13px;color:var(--text-light);">
+                      ${escapeHtml(c.challenger_name)} ${c.challenger_score}% vs ${escapeHtml(c.opponent_name || '?')} ${c.opponent_score}%
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);">${timeAgo(c.created_at)}</div>
+                  </div>
+                  <span style="font-size:16px;">
+                    ${isWinner ? '🏆 胜利' : isDraw ? '🤝 平局' : '💪 再接再厉'}
+                  </span>
+                </div>
+              `;
+            }).join('')
+          }
+        </div>
+      `;
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  switchBattleTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    ['arena', 'active', 'history'].forEach(t => {
+      const div = document.getElementById(`battle-tab-${t}`);
+      if (div) div.style.display = t === tab ? 'block' : 'none';
+    });
+  },
+
+  async quickChallengePartner(partnerId, partnerName) {
+    try {
+      const courses = await API.getCourses();
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal">
+          <h3>⚔️ 向 ${escapeHtml(partnerName)} 发起对战</h3>
+          <p style="color:var(--text-light);margin-bottom:16px;">选择一门课程来对战</p>
+          <select id="quick-challenge-course" class="form-select mb-16">
+            <option value="">请选择课程...</option>
+            ${courses.map(c => `<option value="${c.id}">L${c.level} - ${escapeHtml(c.title)}</option>`).join('')}
+          </select>
+          <div class="modal-actions">
+            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button>
+            <button class="btn btn-primary" id="quick-challenge-btn" onclick="App.doQuickChallenge(${partnerId})">发起对战</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+      });
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async doQuickChallenge(partnerId) {
+    const courseId = document.getElementById('quick-challenge-course')?.value;
+    if (!courseId) {
+      showToast('请选择课程', 'error');
+      return;
+    }
+    try {
+      const result = await API.createChallenge(parseInt(courseId));
+      document.querySelector('.modal-overlay')?.remove();
+      showToast('对战已发起！');
+      location.hash = `#/challenge/${result.challengeId}`;
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async joinBattleByCode() {
+    const code = document.getElementById('battle-code-input')?.value.trim();
+    if (!code) {
+      showToast('请输入对战码', 'error');
+      return;
+    }
+    try {
+      const data = await API.joinChallengeByCode(code);
+      showToast('成功加入对战！');
+      location.hash = `#/challenge/${data.challengeId}`;
+    } catch (e) {
+      showToast('对战码无效，请检查后重试', 'error');
+    }
+  },
+
+  // ===================== LEADERBOARD =====================
+  async renderLeaderboard() {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const [global, weekly] = await Promise.all([
+        API.getLeaderboard(),
+        API.getWeeklyLeaderboard()
+      ]);
+
+      main.innerHTML = `
+        <div class="page-title">🏆 排行榜</div>
+        
+        <div class="tabs">
+          <button class="tab active" onclick="App.switchLeaderboardTab('global', this)">总积分榜</button>
+          <button class="tab" onclick="App.switchLeaderboardTab('weekly', this)">本周积分榜</button>
+        </div>
+
+        <div id="lb-global" class="card">
+          ${global.length === 0
+            ? '<div class="empty-state"><p>暂无数据</p></div>'
+            : global.map((u, i) => leaderboardItemHtml(u, i, 'score')).join('')
+          }
+        </div>
+
+        <div id="lb-weekly" class="card" style="display:none;">
+          ${weekly.length === 0
+            ? '<div class="empty-state"><p>暂无本周数据</p></div>'
+            : weekly.map((u, i) => leaderboardItemHtml(u, i, 'weekly_score')).join('')
+          }
+        </div>
+      `;
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  switchLeaderboardTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('lb-global').style.display = tab === 'global' ? 'block' : 'none';
+    document.getElementById('lb-weekly').style.display = tab === 'weekly' ? 'block' : 'none';
+  },
+
+  // ===================== PROFILE =====================
+  async renderProfile() {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const [profile, stats] = await Promise.all([
+        API.getProfile(),
+        API.getStats()
+      ]);
+
+      // Build activity heatmap (last 30 days)
+      const activityMap = {};
+      (stats.activity || []).forEach(a => {
+        activityMap[a.date] = a.count;
+      });
+
+      let heatmapHtml = '';
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const count = activityMap[dateStr] || 0;
+        const level = count >= 4 ? 'level-4' : count >= 3 ? 'level-3' : count >= 2 ? 'level-2' : count >= 1 ? 'level-1' : '';
+        heatmapHtml += `<div class="heatmap-day ${level}" title="${dateStr}: ${count} 课"></div>`;
+      }
+
+      main.innerHTML = `
+        <div class="profile-header">
+          ${avatarHtml(profile, 'avatar-lg')}
+          <h2 style="margin-top:12px;">${escapeHtml(profile.nickname)}</h2>
+          ${levelBadgeHtml(profile.level)}
+          ${profile.position ? `<p style="margin-top:8px;color:var(--text-light);">${escapeHtml(profile.position)} @ ${escapeHtml(profile.company || '')}</p>` : ''}
+          
+          <div class="profile-stats">
+            <div class="profile-stat">
+              <div class="value">${stats.coursesCompleted}</div>
+              <div class="label">已学课程</div>
+            </div>
+            <div class="profile-stat">
+              <div class="value">${stats.totalScore}</div>
+              <div class="label">累计积分</div>
+            </div>
+            <div class="profile-stat">
+              <div class="value">${profile.partnerCount}</div>
+              <div class="label">学习搭子</div>
+            </div>
+            <div class="profile-stat">
+              <div class="value">${profile.streak_days || 0}</div>
+              <div class="label">连续学习</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-16">
+          <h3 style="margin-bottom:12px;">📅 学习活跃度（近30天）</h3>
+          <div class="heatmap">${heatmapHtml}</div>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:8px;font-size:11px;color:var(--text-muted);">
+            少 <span class="heatmap-day"></span><span class="heatmap-day level-1"></span><span class="heatmap-day level-2"></span><span class="heatmap-day level-3"></span><span class="heatmap-day level-4"></span> 多
+          </div>
+        </div>
+
+        <div class="card mb-16">
+          <h3 style="margin-bottom:16px;">📚 最近完成的课程</h3>
+          ${(stats.recentCourses || []).length === 0
+            ? '<div class="empty-state"><p>还没有完成任何课程</p></div>'
+            : (stats.recentCourses || []).map(c => `
+              <div class="feed-item">
+                <div class="feed-content">
+                  <div class="feed-action">📚 ${escapeHtml(c.title)} (L${c.level})</div>
+                  <div class="feed-time">得分: ${c.score}% · ${timeAgo(c.completed_at)}</div>
+                </div>
+              </div>
+            `).join('')
+          }
+        </div>
+
+        <div class="card mb-16">
+          <h3 style="margin-bottom:16px;">📊 评估历史</h3>
+          <div id="assessment-history">加载中...</div>
+        </div>
+
+        <div class="text-center mb-24">
+          <button class="btn btn-outline" onclick="location.hash='#/assess'">🔄 重新评估</button>
+        </div>
+      `;
+
+      // Load assessment history
+      try {
+        const history = await API.getAssessmentHistory();
+        const histDiv = document.getElementById('assessment-history');
+        if (history.length === 0) {
+          histDiv.innerHTML = '<div class="empty-state"><p>还没有评估记录</p></div>';
+        } else {
+          histDiv.innerHTML = history.map(h => `
+            <div class="feed-item">
+              <div class="feed-content">
+                <div class="feed-action">📊 评估得分: ${h.score}分 — ${getLevelLabel(h.level)} L${h.level}</div>
+                <div class="feed-time">${timeAgo(h.created_at)}</div>
+              </div>
+            </div>
+          `).join('');
+        }
+      } catch (e) {
+        document.getElementById('assessment-history').innerHTML = '<p style="color:var(--text-muted);">加载失败</p>';
+      }
+    } catch (e) {
+      showError(main, e.message);
+    }
+  }
+};
+
+// ===================== Helper Functions =====================
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function courseCardHtml(course) {
+  const statusClass = `status-${course.progress || 'not_started'}`;
+  const statusLabels = { completed: '✅ 已完成', in_progress: '📖 学习中', not_started: '📌 未开始' };
+  
+  return `
+    <div class="course-card ${course.progress === 'completed' ? 'completed' : ''}" data-course-id="${course.id}">
+      <div class="course-icon">📚</div>
+      <div class="course-info">
+        <h3>${escapeHtml(course.title)}</h3>
+        <p>${escapeHtml(course.description || '')}</p>
+        <div class="course-meta">
+          ${levelBadgeHtml(course.level)}
+          <span>${course.difficulty_label || ''}</span>
+          ${course.score ? `<span style="margin-left:4px;">得分: ${course.score}%</span>` : ''}
+        </div>
+      </div>
+      <span class="course-status ${statusClass}">${statusLabels[course.progress] || '📌 未开始'}</span>
+    </div>
+  `;
+}
+
+function partnerCardHtml(partner) {
+  return `
+    <div class="partner-card" onclick="location.hash='#/partner/${partner.id}'" style="cursor:pointer;">
+      ${avatarHtml(partner)}
+      <div class="partner-info">
+        <h3>${escapeHtml(partner.nickname)}</h3>
+        <div class="partner-meta">
+          ${levelBadgeHtml(partner.level)}
+          <span style="margin-left:8px;">⭐ ${partner.score} 分</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); App.quickChallengePartner(${partner.id}, '${escapeHtml(partner.nickname).replace(/'/g, "\\'")}')">⚔️ 对战</button>
+      <span style="font-size:20px;cursor:pointer;">→</span>
+    </div>
+  `;
+}
+
+function feedItemHtml(feed) {
+  const actionIcons = {
+    complete_course: '✅',
+    start_course: '📖',
+    found_partner: '🤝',
+    challenge: '⚔️',
+    challenge_complete: '🏆'
+  };
+  const icon = actionIcons[feed.action] || '📌';
+
+  return `
+    <div class="feed-item">
+      ${avatarHtml(feed, 'avatar-sm')}
+      <div class="feed-content">
+        <div class="feed-user">${escapeHtml(feed.nickname)}</div>
+        <div class="feed-action">${icon} ${escapeHtml(feed.details)}</div>
+        <div class="feed-time">${timeAgo(feed.created_at)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function leaderboardItemHtml(user, index, scoreField) {
+  const rank = index + 1;
+  const rankClass = rank <= 3 ? `top-${rank}` : '';
+  
+  return `
+    <div class="leaderboard-item">
+      <div class="leaderboard-rank ${rankClass}">
+        ${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
+      </div>
+      ${avatarHtml(user, 'avatar-sm')}
+      <div class="leaderboard-info">
+        <h3>${escapeHtml(user.nickname)}</h3>
+        <p>${levelBadgeHtml(user.level)} · 📚 ${user.courses_completed || 0} 课</p>
+      </div>
+      <div class="leaderboard-score">⭐ ${user[scoreField] || 0}</div>
+    </div>
+  `;
+}
+
+function renderDimensionScores(details) {
+  if (!details) return '';
+  const dims = [
+    { key: 'listening', label: '👂 听力', totalKey: 'listening_total' },
+    { key: 'speaking', label: '🗣️ 情景', totalKey: 'speaking_total' },
+    { key: 'reading', label: '📖 阅读', totalKey: 'reading_total' },
+    { key: 'vocabulary', label: '✍️ 词汇', totalKey: 'vocabulary_total' }
+  ];
+
+  return dims.map(d => {
+    const correct = details[d.key] || 0;
+    const total = details[d.totalKey] || 1;
+    const pct = Math.round((correct / total) * 100);
+    return `
+      <div class="dimension-score">
+        <div class="dimension-label">${d.label}</div>
+        <div class="dimension-bar">
+          <div class="dimension-fill ${d.key}" style="width:${pct}%"></div>
+        </div>
+        <span style="font-size:13px;font-weight:600;">${correct}/${total}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ===================== Global logout function =====================
+async function logout() {
+  try {
+    await API.logout();
+    App.currentUser = null;
+    hideAda();
+    location.hash = '#/';
+    App.showLogin();
+  } catch (e) {
+    App.currentUser = null;
+    location.reload();
+  }
+}
+
+// ===================== Handle Enter key on login =====================
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const loginForm = document.getElementById('login-form');
+    const regForm = document.getElementById('register-form');
+    if (loginForm && loginForm.style.display !== 'none') {
+      App.handleLogin();
+    } else if (regForm && regForm.style.display !== 'none') {
+      App.handleRegister();
+    }
+  }
+});
+
+// ===================== Init App =====================
+document.addEventListener('DOMContentLoaded', () => App.init());
