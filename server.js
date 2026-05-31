@@ -729,7 +729,7 @@ app.post('/api/courses/:id/complete', requireAuth, (req, res) => {
 app.get('/api/courses/:id/practice', requireAuth, (req, res) => {
   try {
     const courseId = parseInt(req.params.id);
-    const questions = db.prepare('SELECT * FROM questions WHERE course_id = ? ORDER BY RANDOM() LIMIT 5').all(courseId);
+    const questions = db.prepare('SELECT * FROM questions WHERE course_id = ? ORDER BY RANDOM()').all(courseId);
 
     const formatted = questions.map(q => {
       const data = JSON.parse(q.question_json);

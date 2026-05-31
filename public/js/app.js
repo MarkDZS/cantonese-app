@@ -367,97 +367,442 @@ const App = {
   },
 
   // ===================== COURSE DETAIL =====================
+  _course: null,
+  _courseId: null,
+  _currentModule: 0,
+  _courseData: null,
+
   async renderCourseDetail(courseId) {
     const main = document.getElementById('main-content');
     showLoading(main);
 
     try {
       const course = await API.getCourse(courseId);
+      this._course = course;
+      this._courseId = courseId;
+      this._currentModule = 0;
+
+      // Parse content - support both old and new format
       const content = course.content;
+      this._courseData = content;
+
+      // Check if new format (has modules)
+      const hasModules = content && content.modules && Array.isArray(content.modules);
+      const moduleNames = hasModules
+        ? content.modules.map(m => m.title || this._getModuleLabel(m.type))
+        : ['情景引入', '核心词汇', '语法表达', '文化知识'];
+
+      const totalModules = hasModules ? content.modules.length : 4;
+      const levelLabels = ['未够班', '听得明少少', '勉强应付', '对答如流', '职场达人'];
+      const duration = content.duration_minutes || 18;
 
       main.innerHTML = `
-        <div style="margin-bottom:16px;">
-          <a href="#/courses" style="font-size:14px;">← 返回课程列表</a>
-        </div>
-        
-        <div class="card mb-16">
-          <div class="card-header">
-            <span class="card-title">${course.title}</span>
-            ${levelBadgeHtml(course.level)}
-          </div>
-          <p style="color:var(--text-light);margin-bottom:16px;">${course.description || ''}</p>
-          <span style="font-size:13px;padding:4px 10px;background:#FFF0E6;border-radius:10px;">${course.difficulty_label}</span>
-          
-          ${course.progress === 'completed' ? 
-            `<div class="mt-8"><span class="course-status status-completed">✅ 已完成 - 得分: ${course.score}%</span></div>` : ''}
+        <!-- Top Nav -->
+        <div class="course-top-bar">
+          <a href="#/courses" class="course-back-btn">← 返回</a>
+          <div class="course-top-title">L${course.level} ${course.title}</div>
+          <div class="course-progress-indicator">第1课/共6课</div>
         </div>
 
-        <!-- Scenario -->
-        <div class="card course-content-section mb-16">
-          <h3>🎬 情景引入</h3>
-          <div class="dialogue-box">${escapeHtml(content.scenario || content.dialogue || '')}</div>
+        <!-- Meta Info Bar -->
+        <div class="course-meta-bar">
+          <span class="course-meta-badge level-${course.level}">🌱 ${levelLabels[course.level - 1] || 'L' + course.level} L${course.level}</span>
+          <span class="course-meta-badge">⭐ 难度</span>
+          <span class="course-meta-badge">⏱ 预计${duration}分钟</span>
+          ${course.progress === 'completed' ? `<span class="course-meta-badge status-completed">✅ 已完成 得分:${course.score}%</span>` : ''}
         </div>
 
-        <!-- Vocabulary -->
-        <div class="card course-content-section mb-16">
-          <h3>📝 核心词汇</h3>
-          <div class="vocab-grid">
-            ${(content.vocabulary || []).map(v => `
-              <div class="vocab-item">
-                <div class="vocab-jyutping">${escapeHtml(v.jyutping || '')}</div>
-                <div class="vocab-word">${escapeHtml(v.word)}</div>
-                <div class="vocab-meaning">${escapeHtml(v.meaning)}</div>
-              </div>
-            `).join('')}
-          </div>
+        <!-- Module Navigation Tabs -->
+        <div class="course-module-tabs" id="course-module-tabs">
+          ${moduleNames.map((name, i) => `
+            <button class="course-module-tab ${i === 0 ? 'active' : ''}" data-idx="${i}">
+              ${i === 0 ? '🎬' : i === 1 ? '📝' : i === 2 ? '📖' : i === 3 ? '💡' : '✏️'} ${name}
+            </button>
+          `).join('')}
         </div>
 
-        <!-- Grammar -->
-        ${content.grammar && content.grammar.length > 0 ? `
-          <div class="card course-content-section mb-16">
-            <h3>📖 语法/表达</h3>
-            ${content.grammar.map(g => `
-              <div class="grammar-item">
-                <div class="grammar-pattern">${escapeHtml(g.pattern)}</div>
-                <div style="font-size:13px;color:var(--text-light);margin:4px 0;">${escapeHtml(g.explanation)}</div>
-                <div class="grammar-example">💬 ${escapeHtml(g.example)}</div>
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
+        <!-- Content Area -->
+        <div id="course-module-content" class="course-module-content"></div>
 
-        <!-- Culture -->
-        ${content.culture ? `
-          <div class="card course-content-section mb-16">
-            <h3>💡 文化小知识</h3>
-            <div class="culture-box">${escapeHtml(content.culture)}</div>
-          </div>
-        ` : ''}
-
-        <!-- Dialogue -->
-        ${content.dialogue ? `
-          <div class="card course-content-section mb-16">
-            <h3>💬 示例对话</h3>
-            <div class="dialogue-box">${escapeHtml(content.dialogue)}</div>
-          </div>
-        ` : ''}
-
-        <!-- Actions -->
-        <div class="flex gap-16 mb-24">
-          <button class="btn btn-primary btn-lg" onclick="App.startCourse(${courseId})" 
-            ${course.progress === 'completed' ? 'disabled' : ''}>
-            ${course.progress === 'completed' ? '✅ 已完成' : course.progress === 'in_progress' ? '📖 继续学习' : '📖 开始学习'}
+        <!-- Bottom Action Bar -->
+        <div class="course-bottom-bar">
+          <button class="btn btn-outline" id="course-prev-btn" onclick="App.prevModule()" disabled>← 上一步</button>
+          <span id="course-step-indicator">1 / ${totalModules}</span>
+          <button class="btn btn-primary" id="course-next-btn" onclick="App.nextModule()">
+            ${totalModules > 1 ? '下一步 →' : '完成课程'}
           </button>
-          <button class="btn btn-success btn-lg" onclick="location.hash='#/course/${courseId}/practice'">
-            ✏️ 课后练习
-          </button>
-          <button class="btn btn-outline btn-lg" onclick="App.createChallengeFromCourse(${courseId})">
-            ⚔️ 发起对战
+          <button class="btn btn-success" id="course-complete-btn" style="display:none;" onclick="App.finishCourse()">
+            🎉 完成课程
           </button>
         </div>
       `;
+
+      // Render first module
+      this.renderModule(0);
+
+      // Attach tab click handlers
+      document.querySelectorAll('.course-module-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          const idx = parseInt(tab.dataset.idx);
+          this.switchModule(idx);
+        });
+      });
+
+      // Start course tracking
+      if (course.progress !== 'completed') {
+        await API.startCourse(courseId);
+      }
+
     } catch (e) {
       showError(main, e.message);
+    }
+  },
+
+  _getModuleLabel(type) {
+    const labels = { dialogue: '情景引入', vocabulary: '核心词汇', grammar: '语法表达', culture: '文化知识', practice: '即时练习' };
+    return labels[type] || type;
+  },
+
+  switchModule(index) {
+    this._currentModule = index;
+    this.renderModule(index);
+
+    // Update tabs
+    document.querySelectorAll('.course-module-tab').forEach((tab, i) => {
+      tab.classList.toggle('active', i === index);
+    });
+
+    // Update bottom bar
+    const total = (this._courseData?.modules || []).length || 4;
+    const isLast = index >= total - 1;
+    document.getElementById('course-prev-btn').disabled = index === 0;
+    document.getElementById('course-next-btn').style.display = isLast ? 'none' : '';
+    document.getElementById('course-complete-btn').style.display = isLast ? '' : 'none';
+    document.getElementById('course-step-indicator').textContent = `${index + 1} / ${total}`;
+
+    // Scroll to top of content
+    document.getElementById('course-module-content').scrollIntoView({ behavior: 'smooth' });
+  },
+
+  nextModule() {
+    const total = (this._courseData?.modules || []).length || 4;
+    if (this._currentModule < total - 1) {
+      this.switchModule(this._currentModule + 1);
+    }
+  },
+
+  prevModule() {
+    if (this._currentModule > 0) {
+      this.switchModule(this._currentModule - 1);
+    }
+  },
+
+  async finishCourse() {
+    try {
+      await API.completeCourse(this._courseId, 100);
+      showToast('🎉 恭喜完成课程！');
+      showAda(AdaMessages.complete_course);
+      setTimeout(() => { location.hash = '#/courses'; }, 1500);
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  renderModule(index) {
+    const container = document.getElementById('course-module-content');
+    if (!container) return;
+
+    const content = this._courseData;
+    // If old format, render with legacy layout
+    if (!content || !content.modules) {
+      this._renderLegacyModule(container, content, index);
+      return;
+    }
+
+    const module = content.modules[index];
+    if (!module) return;
+
+    switch (module.type) {
+      case 'dialogue': this._renderDialogueModule(container, module); break;
+      case 'vocabulary': this._renderVocabModule(container, module); break;
+      case 'grammar': this._renderGrammarModule(container, module); break;
+      case 'culture': this._renderCultureModule(container, module); break;
+      case 'practice': this._renderPracticeModule(container, module); break;
+      default: container.innerHTML = '<div class="empty-state"><p>暂无内容</p></div>';
+    }
+  },
+
+  _renderLegacyModule(container, content, index) {
+    // Fallback for old format courses
+    if (!content) { container.innerHTML = '<div class="empty-state"><p>暂无内容</p></div>'; return; }
+    if (index === 0) {
+      container.innerHTML = `
+        <div class="card"><h3>🎬 情景引入</h3>
+          <div class="dialogue-box">${escapeHtml(content.scenario || content.dialogue || '')}</div>
+        </div>`;
+    } else if (index === 1) {
+      container.innerHTML = `
+        <div class="card"><h3>📝 核心词汇</h3>
+          <div class="vocab-grid">${(content.vocabulary || []).map(v => `
+            <div class="vocab-item"><div class="vocab-jyutping">${escapeHtml(v.jyutping||'')}</div><div class="vocab-word">${escapeHtml(v.word)}</div><div class="vocab-meaning">${escapeHtml(v.meaning)}</div></div>
+          `).join('')}</div></div>`;
+    } else if (index === 2) {
+      container.innerHTML = (content.grammar || []).map(g => `
+        <div class="card mb-16"><h3>📖 语法/表达</h3>
+          <div class="grammar-item"><div class="grammar-pattern">${escapeHtml(g.pattern)}</div><div>${escapeHtml(g.explanation)}</div><div class="grammar-example">💬 ${escapeHtml(g.example)}</div></div>
+        </div>`).join('');
+    } else if (index === 3) {
+      container.innerHTML = content.culture ? `
+        <div class="card"><h3>💡 文化小知识</h3><div class="culture-box">${escapeHtml(content.culture)}</div></div>` : '';
+    }
+  },
+
+  // ========== Module Renderers ==========
+
+  _renderDialogueModule(container, module) {
+    const scenes = module.scenes || [];
+    let html = `<div class="dialogue-scenario-card card mb-16">
+      <p class="dialogue-scenario-text">📍 ${escapeHtml(module.scenario || '')}</p>
+    </div>`;
+
+    scenes.forEach((scene, si) => {
+      html += `
+        <div class="dialogue-scene mb-16">
+          <div class="dialogue-scene-header">
+            <span class="dialogue-scene-name">${escapeHtml(scene.name)}</span>
+            <span class="dialogue-scene-location">${escapeHtml(scene.location || '')}</span>
+            <button class="dialogue-play-all btn btn-sm btn-outline" onclick="App.playSceneAudio(${si})">🔊 全部播放</button>
+          </div>`;
+
+      (scene.lines || []).forEach((line, li) => {
+        const isUser = line.speaker === '你';
+        html += `
+          <div class="dialogue-bubble-wrapper ${isUser ? 'user' : 'other'}">
+            ${!isUser ? `<div class="dialogue-avatar">${escapeHtml(line.speaker.slice(0, 1))}</div>` : ''}
+            <div class="dialogue-bubble ${isUser ? 'user' : 'other'}">
+              <div class="dialogue-speaker">${escapeHtml(line.speaker)}</div>
+              <div class="dialogue-text">${escapeHtml(line.text)}</div>
+              <div class="dialogue-actions">
+                <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(line.text).replace(/'/g, "\\'")}')" title="播放">🔊</button>
+                <button class="dialogue-expand-btn" onclick="this.closest('.dialogue-bubble-wrapper').querySelector('.dialogue-detail').classList.toggle('show')" title="展开详情">▼</button>
+              </div>
+              <div class="dialogue-detail">
+                <div class="dialogue-jyutping">🔤 ${escapeHtml(line.jyutping || '')}</div>
+                <div class="dialogue-mandarin">🇨🇳 ${escapeHtml(line.mandarin || '')}</div>
+              </div>
+            </div>
+            ${isUser ? `<div class="dialogue-avatar">🦁</div>` : ''}
+          </div>`;
+      });
+
+      html += `</div>`;
+    });
+
+    container.innerHTML = html;
+  },
+
+  _renderVocabModule(container, module) {
+    const words = module.words || [];
+    let html = '<div class="vocab-flip-grid">';
+
+    words.forEach((w, i) => {
+      html += `
+        <div class="vocab-flip-card" onclick="this.classList.toggle('flipped')">
+          <div class="vocab-flip-inner">
+            <div class="vocab-flip-front">
+              <div class="vocab-flip-word">${escapeHtml(w.word)}</div>
+              <div class="vocab-flip-jyutping">${escapeHtml(w.jyutping)}</div>
+              <button class="dialogue-play-btn" onclick="event.stopPropagation(); App.speakText('${escapeHtml(w.word).replace(/'/g, "\\'")}')" title="播放发音">🔊</button>
+              ${w.enteringTone ? '<span class="vocab-entering-badge">入</span>' : ''}
+            </div>
+            <div class="vocab-flip-back">
+              <div class="vocab-flip-meaning">${escapeHtml(w.mandarin)}</div>
+              <div class="vocab-flip-mnemonic">💡 谐音：${escapeHtml(w.mnemonic)}</div>
+              <div class="vocab-flip-scene">📌 ${escapeHtml(w.scene)}</div>
+              ${w.enteringTone ? '<div class="vocab-flip-tone">⚠️ 入声字：发音短促有力，勿拖长尾音</div>' : ''}
+            </div>
+          </div>
+        </div>`;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+  },
+
+  _renderGrammarModule(container, module) {
+    const patterns = module.patterns || [];
+    let html = '';
+
+    patterns.forEach(p => {
+      html += `
+        <div class="grammar-card card mb-16">
+          <h3 class="grammar-title">📖 ${escapeHtml(p.name)}</h3>
+          <div class="grammar-usage">${escapeHtml(p.usage)}</div>
+          <div class="grammar-examples">
+            ${(p.examples || []).map(ex => `
+              <div class="grammar-example-item">
+                <div class="grammar-example-canto">🗣 ${escapeHtml(ex.canto)}</div>
+                <div class="grammar-example-jp">🔤 ${escapeHtml(ex.jyutping)}</div>
+                <div class="grammar-example-zh">🇨🇳 ${escapeHtml(ex.mandarin)}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+  },
+
+  _renderCultureModule(container, module) {
+    const items = module.items || [];
+    let html = '';
+
+    items.forEach(item => {
+      html += `
+        <div class="culture-card card mb-16">
+          <div class="culture-card-header" onclick="this.closest('.culture-card').classList.toggle('expanded')">
+            <span class="culture-card-icon">${escapeHtml(item.icon || '💡')}</span>
+            <h3>${escapeHtml(item.title)}</h3>
+            <span class="culture-expand-arrow">▼</span>
+          </div>
+          <div class="culture-card-body">
+            <p>${escapeHtml(item.content)}</p>
+          </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+  },
+
+  _renderPracticeModule(container, module) {
+    const exercises = module.exercises || [];
+    let html = '';
+
+    exercises.forEach((ex, ei) => {
+      html += `<div class="practice-section mb-24" id="practice-section-${ei}">`;
+      html += `<h3 class="practice-title">📝 ${escapeHtml(ex.title)}</h3>`;
+      if (ex.description) html += `<p class="practice-desc">${escapeHtml(ex.description)}</p>`;
+
+      if (ex.type === 'dialogue_simulation') {
+        (ex.scenes || []).forEach((scene, si) => {
+          html += `<div class="practice-scene-card card mb-12">
+            <div class="practice-scene-prompt">${escapeHtml(scene.scene)}</div>
+            <div class="option-list practice-options" data-ex="${ei}" data-scene="${si}">
+              ${scene.options.map((opt, oi) => `
+                <div class="option-item" data-oi="${oi}" data-correct="${opt.correct}">
+                  ${escapeHtml(opt.text)}
+                </div>
+              `).join('')}
+            </div>
+            <div class="practice-feedback" style="display:none;"></div>
+          </div>`;
+        });
+      } else if (ex.type === 'fill_in') {
+        html += `<div class="card mb-12"><div class="fill-practice-list">`;
+        (ex.items || []).forEach((item, fi) => {
+          html += `
+            <div class="fill-practice-item" data-ex="${ei}" data-fi="${fi}">
+              <span class="fill-practice-q">${escapeHtml(item.question)}</span>
+              <input type="text" class="fill-input fill-practice-input" placeholder="请输入粤语答案">
+              <span class="fill-practice-answer" style="display:none;">✅ ${escapeHtml(item.answer)}</span>
+              <span class="fill-practice-wrong" style="display:none;">❌ 正确答案：${escapeHtml(item.answer)}</span>
+            </div>`;
+        });
+        html += `</div>
+          <button class="btn btn-primary btn-sm mt-8" onclick="App.checkFillPractice(${ei})">提交填空</button>
+        </div>`;
+      } else if (ex.type === 'listening_matching') {
+        html += `<div class="card mb-12"><div class="listening-match-list">`;
+        (ex.items || []).forEach((item, mi) => {
+          html += `
+            <div class="listening-match-item">
+              <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(item.canto).replace(/'/g, "\\'")}')" title="播放">🔊</button>
+              <span class="listening-match-canto">${escapeHtml(item.canto)}</span>
+              <span class="listening-match-arrow">→</span>
+              <span class="listening-match-mandarin" style="display:none;">${escapeHtml(item.mandarin)}</span>
+              <button class="btn btn-sm btn-outline listening-reveal-btn" onclick="this.previousElementSibling.style.display='';this.style.display='none';">显示翻译</button>
+            </div>`;
+        });
+        html += `</div></div>`;
+      }
+
+      html += `</div>`;
+    });
+
+    container.innerHTML = html;
+
+    // Attach handlers for dialogue simulation options
+    container.querySelectorAll('.practice-options .option-item').forEach(opt => {
+      opt.addEventListener('click', function() {
+        const parent = this.closest('.option-list');
+        const feedbackEl = parent.parentElement.querySelector('.practice-feedback');
+        
+        // Prevent re-selection
+        if (parent.classList.contains('answered')) return;
+        parent.classList.add('answered');
+        parent.querySelectorAll('.option-item').forEach(o => o.style.pointerEvents = 'none');
+
+        const isCorrect = this.dataset.correct === 'true';
+        this.classList.add(isCorrect ? 'correct' : 'incorrect');
+
+        // Show correct answer if wrong
+        if (!isCorrect) {
+          parent.querySelectorAll('.option-item').forEach(o => {
+            if (o.dataset.correct === 'true') o.classList.add('correct');
+          });
+        }
+
+        feedbackEl.style.display = 'block';
+        feedbackEl.className = `practice-feedback ${isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`;
+        feedbackEl.textContent = isCorrect ? '✅ 答对了！' : '❌ 答错了，看看正确答案吧！';
+      });
+    });
+  },
+
+  checkFillPractice(exIndex) {
+    const section = document.getElementById(`practice-section-${exIndex}`);
+    if (!section) return;
+
+    section.querySelectorAll('.fill-practice-item').forEach(item => {
+      const input = item.querySelector('.fill-practice-input');
+      const answer = item.querySelector('.fill-practice-answer');
+      const wrong = item.querySelector('.fill-practice-wrong');
+      const userAnswer = input.value.trim();
+
+      input.disabled = true;
+      if (userAnswer && userAnswer.toLowerCase() === answer.textContent.replace('✅ ', '').trim().toLowerCase()) {
+        answer.style.display = '';
+        input.style.borderColor = 'var(--success)';
+        input.style.background = '#D5F5E3';
+      } else {
+        wrong.style.display = '';
+        input.style.borderColor = 'var(--danger)';
+        input.style.background = '#FDEDEC';
+      }
+    });
+  },
+
+  playSceneAudio(sceneIndex) {
+    const module = this._courseData?.modules?.find(m => m.type === 'dialogue');
+    if (!module || !module.scenes || !module.scenes[sceneIndex]) return;
+    
+    const scene = module.scenes[sceneIndex];
+    if (scene.lines && scene.lines.length > 0) {
+      // Speak first line to indicate play
+      this.speakText(scene.lines[0].text);
+      showToast('🔊 正在播放场景对话...');
+    }
+  },
+
+  speakText(text) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-HK';
+      utterance.rate = 0.85;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      showToast('浏览器不支持语音播放', 'error');
     }
   },
 

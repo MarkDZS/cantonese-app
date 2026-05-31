@@ -12,22 +12,177 @@ db.pragma('foreign_keys = ON');
 // ===================== Courses =====================
 const courses = [
   // L1 courses
-  { id: 1, title: '办公室问候', level: 1, order_index: 1, description: '学习香港办公室的日常问候用语', difficulty_label: '🟢 轻松',
+  { id: 1, title: '办公室问候', level: 1, order_index: 1, description: '第一日返香港office，从前台到经理，全面掌握办公室问候', difficulty_label: '🟢 轻松',
     content_json: JSON.stringify({
-      scenario: '第一日返香港 office，同同事打招呼',
-      vocabulary: [
-        { word: '早晨', jyutping: 'zou2 san4', meaning: '早上好（上午打招呼用）' },
-        { word: '你好', jyutping: 'nei5 hou2', meaning: '你好' },
-        { word: '我係', jyutping: 'ngo5 hai6', meaning: '我是' },
-        { word: '同事', jyutping: 'tung4 si6', meaning: '同事' },
-        { word: '請多多指教', jyutping: 'cing2 do1 do1 zi2 gaau3', meaning: '请多多指教' },
-        { word: '老細', jyutping: 'lou5 sai3', meaning: '老板/上司' }
-      ],
-      grammar: [
-        { pattern: '早晨 vs 你好', explanation: '对同事说"早晨"，对上级说"早晨+称呼"，"你好"更正式通用', example: '早晨陳生！/ 你好，我係新同事' }
-      ],
-      culture: '香港office早晨见面习惯 — 对同事说"早晨"，对上级说"早晨+称呼"。香港人上班见面很少握手，点头+早晨即可。',
-      dialogue: 'A: 早晨！你係新嚟嘅同事？\nB: 早晨！係啊，我叫做阿明，請多多指教。\nA: 我叫阿強，歡迎你！'
+      "course_id": "MO-01-00",
+      "title": "办公室问候",
+      "level": 1,
+      "order_index": 1,
+      "duration_minutes": 18,
+      "modules": [
+        {
+          "type": "dialogue",
+          "title": "情景引入",
+          "scenario": "第一日返香港 office，你提早15分钟到公司门口，听到里面有人说话，推门而入，遇到三位同事——前台Amy、同部门阿Ken、部门主管张经理。",
+          "scenes": [
+            {
+              "name": "第一幕：前台初遇",
+              "location": "写字楼门口 → 前台",
+              "lines": [
+                { "speaker": "Amy（前台）", "text": "早晨！你係新嚟嗰位同事呀？", "jyutping": "zou2 san4! nei5 hai6 san1 lai4 go2 wai2 tung4 si6 aa3?", "mandarin": "早上好！你是新来的那位同事吗？" },
+                { "speaker": "你", "text": "係呀，我今日第一日返工，多多指教。", "jyutping": "hai6 aa3, ngo5 gam1 jat6 dai6 jat1 jat6 faan1 gung1, do1 do1 zi2 gaau3.", "mandarin": "是的，我今天第一天上班，请多关照。" },
+                { "speaker": "Amy", "text": "歡迎歡迎！我係前台Amy，有咩可以幫你？", "jyutping": "fun1 jing4 fun1 jing4! ngo5 hai6 cin4 toi4 Amy, jau5 me1 ho2 ji5 bong1 nei5?", "mandarin": "欢迎欢迎！我是前台Amy，有什么可以帮你？" },
+                { "speaker": "你", "text": "你好Amy，我想問下財務部喺邊個位？", "jyutping": "nei5 hou2 Amy, ngo5 soeng2 man6 haa5 coi4 mou6 bou6 hai2 bin1 go3 wai2?", "mandarin": "你好Amy，我想问一下财务部在哪个位置？" },
+                { "speaker": "Amy", "text": "直行轉右，第三個房就係。阿Ken應該到咗啦。", "jyutping": "zik6 hang4 zyun2 jau6, dai6 saam1 go3 fong2 zau6 hai6. Aa3 Ken jing1 goi1 dou3 zo2 laa1.", "mandarin": "直走右转，第三个房间就是。阿Ken应该已经到了。" }
+              ]
+            },
+            {
+              "name": "第二幕：同部门同事",
+              "location": "财务部办公区",
+              "lines": [
+                { "speaker": "Ken", "text": "（見到你）咦，新同事？早晨呀！", "jyutping": "(gin3 dou2 nei5) ji2, san1 tung4 si6? zou2 san4 aa3!", "mandarin": "（见到你）咦，新同事？早上好呀！" },
+                { "speaker": "你", "text": "早晨！我係XXX，今日嚟財務部報到。", "jyutping": "zou2 san4! ngo5 hai6 XXX, gam1 jat6 lai4 coi4 mou6 bou6 bou3 dou3.", "mandarin": "早上好！我是XXX，今天来财务部报到。" },
+                { "speaker": "Ken", "text": "你好你好！我叫阿Ken，係做ERP嘅。你坐我隔籬位。", "jyutping": "nei5 hou2 nei5 hou2! ngo5 giu3 Aa3 Ken, hai6 zou6 ERP ge3. nei5 co5 ngo5 gaak3 lei4 wai2.", "mandarin": "你好你好！我叫阿Ken，是做ERP的。你坐我隔壁工位。" },
+                { "speaker": "你", "text": "好呀，以後多多關照。", "jyutping": "hou2 aa3, ji5 hau6 do1 do1 gwaan1 ziu3.", "mandarin": "好呀，以后多多关照。" },
+                { "speaker": "Ken", "text": "客氣喇！等陣我帶你行一圈，認識下啲同事。", "jyutping": "haak3 hei3 laa3! dang2 zan6 ngo5 daai3 nei5 haang4 jat1 hyun1, jing6 sik1 haa5 di1 tung4 si6.", "mandarin": "客气了！等会儿我带你走一圈，认识一下同事们。" },
+                { "speaker": "你", "text": "唔該晒阿Ken！", "jyutping": "m4 goi1 saai3 Aa3 Ken!", "mandarin": "非常感谢阿Ken！" }
+              ]
+            },
+            {
+              "name": "第三幕：見經理",
+              "location": "经理办公室",
+              "lines": [
+                { "speaker": "Ken", "text": "（敲門）張經理，新同事到咗。", "jyutping": "(haau1 mun4) zoeng1 ging1 lei5, san1 tung4 si6 dou3 zo2.", "mandarin": "（敲门）张经理，新同事到了。" },
+                { "speaker": "張經理", "text": "請入嚟。你好，我係部門經理張國強。", "jyutping": "cing2 jap6 lai4. nei5 hou2, ngo5 hai6 bou6 mun4 ging1 lei5 zoeng1 gwok3 koeng4.", "mandarin": "请进来。你好，我是部门经理张国强。" },
+                { "speaker": "你", "text": "張經理早晨！我係XXX，請多多指教。", "jyutping": "zoeng1 ging1 lei5 zou2 san4! ngo5 hai6 XXX, cing2 do1 do1 zi2 gaau3.", "mandarin": "张经理早上好！我是XXX，请多多指教。" },
+                { "speaker": "張經理", "text": "歡迎加入我哋團隊。聽講你之前做FICO㗎？", "jyutping": "fun1 jing4 gaa1 jap6 ngo5 dei6 tyun4 deoi2. teng1 gong2 nei5 zi1 cin4 zou6 FICO gaa3?", "mandarin": "欢迎加入我们团队。听说你之前做FICO的？" },
+                { "speaker": "你", "text": "係呀，之前做咗三年SAP FICO顧問。", "jyutping": "hai6 aa3, zi1 cin4 zou6 zo2 saam1 nin4 SAP FICO gu3 man6.", "mandarin": "是的，之前做了三年SAP FICO顾问。" },
+                { "speaker": "張經理", "text": "咁就好喇，我哋而家正需要你呢方面嘅經驗。", "jyutping": "gam2 zau6 hou2 laa3, ngo5 dei6 ji4 gaa1 zing3 seoi1 jiu3 nei5 ni1 fong1 min4 ge3 ging1 jim6.", "mandarin": "那就太好了，我们现在正需要你这方面的经验。" },
+                { "speaker": "你", "text": "我會努力學習，盡快上手。", "jyutping": "ngo5 wui5 nou5 lik6 hok6 zaap6, zeon6 faai3 soeng5 sau2.", "mandarin": "我会努力学习，尽快上手。" },
+                { "speaker": "張經理", "text": "好！阿Ken，你幫佢搞掂入職啲嘢。", "jyutping": "hou2! Aa3 Ken, nei5 bong1 keoi5 gaau2 dim6 jap6 zik1 di1 je5.", "mandarin": "好！阿Ken，你帮他搞定入职那些事。" },
+                { "speaker": "Ken", "text": "冇問題，交畀我啦！", "jyutping": "mou5 man6 tai4, gaau1 bei2 ngo5 laa1!", "mandarin": "没问题，交给我吧！" }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "vocabulary",
+          "title": "核心词汇",
+          "words": [
+            { "word": "早晨", "jyutping": "zou2 san4", "mandarin": "早上好", "mnemonic": "走身", "scene": "上午/当天首次见面打招呼", "enteringTone": false },
+            { "word": "新嚟", "jyutping": "san1 lai4", "mandarin": "新来的", "mnemonic": "身离", "scene": "介绍新人时用", "enteringTone": false },
+            { "word": "多多指教", "jyutping": "do1 do1 zi2 gaau3", "mandarin": "请多关照", "mnemonic": "多多指告", "scene": "初次见面的礼貌用语", "enteringTone": false },
+            { "word": "唔該晒", "jyutping": "m4 goi1 saai3", "mandarin": "非常感谢", "mnemonic": "嗯该晒", "scene": "麻烦别人后的感谢", "enteringTone": true },
+            { "word": "隔籬位", "jyutping": "gaak3 lei4 wai2", "mandarin": "隔壁工位", "mnemonic": "格离位", "scene": "描述座位位置", "enteringTone": true },
+            { "word": "行一圈", "jyutping": "haang4 jat1 hyun1", "mandarin": "走一圈/转一圈", "mnemonic": "行一圈", "scene": "带人熟悉环境", "enteringTone": false },
+            { "word": "交畀我", "jyutping": "gaau1 bei2 ngo5", "mandarin": "交给我", "mnemonic": "交比我", "scene": "主动承接任务", "enteringTone": false },
+            { "word": "請入嚟", "jyutping": "cing2 jap6 lai4", "mandarin": "请进来", "mnemonic": "请入离", "scene": "招呼人进办公室", "enteringTone": true }
+          ]
+        },
+        {
+          "type": "grammar",
+          "title": "语法/表达",
+          "patterns": [
+            {
+              "name": "句型1：係…㗎（是…的/表示肯定确认）",
+              "usage": "粤语用「係…㗎」结构表示确认、强调事实，相当于普通话的「是…的」",
+              "examples": [
+                { "canto": "我係新嚟㗎。", "jyutping": "ngo5 hai6 san1 lai4 gaa3.", "mandarin": "我是新来的。" },
+                { "canto": "佢係做ERP㗎。", "jyutping": "keoi5 hai6 zou6 ERP gaa3.", "mandarin": "他是做ERP的。" },
+                { "canto": "我哋正需要你呢方面嘅經驗㗎。", "jyutping": "ngo5 dei6 zing3 seoi1 jiu3 nei5 ni1 fong1 min4 ge3 ging1 jim6 gaa3.", "mandarin": "我们正需要你这方面的经验。" }
+              ]
+            },
+            {
+              "name": "句型2：A幫B搞掂C（A帮B搞定C）",
+              "usage": "「搞掂」= 搞定/办妥，香港职场极高频词",
+              "examples": [
+                { "canto": "你幫佢搞掂入職啲嘢。", "jyutping": "nei5 bong1 keoi5 gaau2 dim6 jap6 zik1 di1 je5.", "mandarin": "你帮他搞定入职那些事。" },
+                { "canto": "幫我搞掂呢份文件。", "jyutping": "bong1 ngo5 gaau2 dim6 ni1 fan6 man4 gin2.", "mandarin": "帮我搞定这份文件。" },
+                { "canto": "搞掂未呀？", "jyutping": "gaau2 dim6 mei6 aa3?", "mandarin": "搞定了没？" }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "culture",
+          "title": "文化小知识",
+          "items": [
+            {
+              "title": "「早晨」不限时",
+              "icon": "☀️",
+              "content": "香港职场「早晨」不限于早上。当天第一次见到同事，哪怕下午都可以说「早晨」。但如果已经打过招呼，第二次见到应该说「Hello」或点头微笑。"
+            },
+            {
+              "title": "「唔該」的万能用法",
+              "icon": "🙏",
+              "content": "香港职场中「唔該」比「謝謝」更常用。叫人帮忙→「唔該」；收快递→「唔該」；让人让路→「唔該借借」。但如果对方请你吃饭/送礼，要说「多謝」。"
+            },
+            {
+              "title": "英文名即係職場ID",
+              "icon": "🆔",
+              "content": "香港公司超过90%的人有英文名。自我介绍时说「我叫阿Ken」比「我叫陳健華」更自然。名片上通常是「Ken Chan」格式，中文名反而不是必需。"
+            }
+          ]
+        },
+        {
+          "type": "practice",
+          "title": "即时练习",
+          "exercises": [
+            {
+              "type": "dialogue_simulation",
+              "title": "角色扮演——你今日第一日返工",
+              "description": "以下是一个不完整的对话，用户需在与同事的3个场景中选择正确的粤语回应",
+              "scenes": [
+                {
+                  "scene": "场景A：前台同你講「早晨！你係新嚟㗎？」",
+                  "options": [
+                    { "text": "「早晨！係呀，我今日第一日返工。」", "correct": true },
+                    { "text": "「早上好，对的。」", "correct": false, "reason": "不应使用普通话" },
+                    { "text": "「我唔係新嚟㗎。」", "correct": false, "reason": "不符合情景" }
+                  ]
+                },
+                {
+                  "scene": "场景B：同事話「我帶你行一圈」",
+                  "options": [
+                    { "text": "「唔該晒！」", "correct": true },
+                    { "text": "「你帶路吧。」", "correct": false, "reason": "不应使用普通话" },
+                    { "text": "「我自己得㗎啦。」", "correct": false, "reason": "不礼貌" }
+                  ]
+                },
+                {
+                  "scene": "场景C：經理話「歡迎加入我哋團隊」",
+                  "options": [
+                    { "text": "「我會努力學習。」", "correct": true },
+                    { "text": "「好。」", "correct": false, "reason": "太简短，不礼貌" },
+                    { "text": "「不用客氣。」", "correct": false, "reason": "普通话，且语境不当" }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "fill_in",
+              "title": "填空翻譯",
+              "description": "把以下普通话翻译成粤语",
+              "items": [
+                { "question": "早上好 → 粵語：___", "answer": "早晨" },
+                { "question": "非常感谢 → 粵語：___", "answer": "唔該晒" },
+                { "question": "隔壁工位 → 粵語：___", "answer": "隔籬位" },
+                { "question": "请进来 → 粵語：___", "answer": "請入嚟" }
+              ]
+            },
+            {
+              "type": "listening_matching",
+              "title": "聽力配對",
+              "description": "播放以下3句粤语录音，选择对应的普通话翻译",
+              "items": [
+                { "canto": "交畀我啦！", "mandarin": "交给我吧！" },
+                { "canto": "我帶你行一圈。", "mandarin": "我带你转一圈。" },
+                { "canto": "請多多指教。", "mandarin": "请多多关照。" }
+              ]
+            }
+          ]
+        }
+      ]
     })
   },
   { id: 2, title: '自我介绍', level: 1, order_index: 2, description: '学习在职场中自我介绍（姓名/职位/部门）', difficulty_label: '🟢 轻松',
@@ -535,12 +690,13 @@ for (const c of courses) {
 
 // ===================== Questions =====================
 const questions = [
-  // L1-1
-  { course_id: 1, type: 'choice', question_json: JSON.stringify({ question: '同事同你講「早晨」，你應該答？', options: ['早晨！', '你好！', '再見！', '晚安！'], correct: 0, explanation: '「早晨」是粤语早上打招呼用语，回应也是「早晨」' }), difficulty: 1 },
-  { course_id: 1, type: 'choice', question_json: JSON.stringify({ question: '第一次見新同事，應該講咩？', options: ['再見', '請多多指教', '唔該', '是但啦'], correct: 1, explanation: '初次见面应该说「請多多指教」，表示请多关照' }), difficulty: 1 },
-  { course_id: 1, type: 'choice', question_json: JSON.stringify({ question: '「老細」係咩意思？', options: ['同事', '老闆/上司', '下屬', '客戶'], correct: 1, explanation: '「老細」是粤语中老板/上司的俗称' }), difficulty: 1 },
-  { course_id: 1, type: 'fill', question_json: JSON.stringify({ question: '第一日返工，見到同事要講「____」', answer: '早晨', hint: 'zoeng1 san4，早上打招呼用語' }), difficulty: 1 },
-  { course_id: 1, type: 'choice', question_json: JSON.stringify({ question: '對上司應該點樣打招呼？', options: ['早晨+稱呼', '就咁講早晨', '講Hi', '唔使打招呼'], correct: 0, explanation: '对上司应该说「早晨+称呼」，如「早晨陳生」，更有礼貌' }), difficulty: 1 },
+  // L1-1 办公室问候 (6道题: 2 choice + 2 fill + 1 matching + 1 listening)
+  { course_id: 1, type: 'choice', question_json: JSON.stringify({ question: '前台Amy同你講「早晨！你係新嚟嗰位同事呀？」，你應該答？', options: ['係呀，我今日第一日返工，多多指教。', '我唔係新嚟㗎。', '你好，请问财务部在哪？', '我唔識你。'], correct: 0, explanation: '第一天上班遇到同事问候，要礼貌回应并自我介绍。「係呀」=是的，「多多指教」=请多关照' }), difficulty: 1 },
+  { course_id: 1, type: 'choice', question_json: JSON.stringify({ question: '同事Ken話「等陣我帶你行一圈」，佢嘅意思係？', options: ['等会儿带你转一圈熟悉环境', '带你去吃饭', '带你出去玩', '带你回家'], correct: 0, explanation: '「行一圈」=走一圈/转一圈，是带新人熟悉公司的常用说法' }), difficulty: 1 },
+  { course_id: 1, type: 'fill', question_json: JSON.stringify({ question: '麻烦别人后表示感谢，粤语说「____」', answer: '唔該晒', hint: 'm4 goi1 saai3，比「唔該」更强烈的感谢' }), difficulty: 1 },
+  { course_id: 1, type: 'fill', question_json: JSON.stringify({ question: '「交____我啦！」表示主动承接任务（填粤语词）', answer: '畀', hint: 'bei2，表示"给"的意思' }), difficulty: 1 },
+  { course_id: 1, type: 'matching', question_json: JSON.stringify({ question: '将「隔籬位」配对正确的普通话释义', pairs: [{ canto: '隔籬位', mandarin: '隔壁工位' }], options: ['隔壁工位', '请进来', '新来的', '请多关照'], correct: 0, explanation: '「隔籬位」=隔壁工位（gaak3=隔，lei4=籬，wai2=位）' }), difficulty: 1 },
+  { course_id: 1, type: 'listening', question_json: JSON.stringify({ question: '聽以下粵語句子，選擇正確的普通話翻譯：', audio_text: '我係新嚟㗎，請多多指教。', options: ['我是新来的，请多多关照。', '我来很久了，不用客气。', '我是老板，请多关照。', '我今天请假了。'], correct: 0, explanation: '「我係新嚟㗎」=我是新来的（「係…㗎」强调确认），「請多多指教」=请多关照' }), difficulty: 1 },
   // L1-2
   { course_id: 2, type: 'choice', question_json: JSON.stringify({ question: '「我叫做阿明」係咩意思？', options: ['我叫阿明', '我是阿明', '我喜歡阿明', '我認識阿明'], correct: 0, explanation: '「我叫做」=我叫，是自我介绍的常用说法' }), difficulty: 1 },
   { course_id: 2, type: 'fill', question_json: JSON.stringify({ question: '自我介紹時要講：我係IT____嘅顧問', answer: '部門', hint: 'bou6 mun4，即係department' }), difficulty: 1 },

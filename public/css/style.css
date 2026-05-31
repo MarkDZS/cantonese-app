@@ -392,7 +392,633 @@ a { text-decoration: none; color: var(--primary); }
 .status-in_progress { background: #FCF3CF; color: #F39C12; }
 .status-not_started { background: #E5E7E9; color: #7F8C8D; }
 
-/* ===================== Course Detail ===================== */
+/* ===================== Course Detail - Top Bar ===================== */
+.course-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.course-back-btn {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.course-top-title {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.course-progress-indicator {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ===================== Course Meta Bar ===================== */
+.course-meta-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.course-meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #FFF0E6;
+  color: var(--primary);
+}
+
+.course-meta-badge.status-completed {
+  background: #D5F5E3;
+  color: #27AE60;
+}
+
+/* ===================== Module Tabs ===================== */
+.course-module-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.course-module-tab {
+  flex: 1;
+  min-width: fit-content;
+  padding: 10px 12px;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-light);
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+
+.course-module-tab.active {
+  background: white;
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.course-module-tab:hover {
+  color: var(--primary);
+}
+
+/* ===================== Module Content Area ===================== */
+.course-module-content {
+  min-height: 400px;
+  margin-bottom: 80px;
+}
+
+/* ===================== Bottom Action Bar ===================== */
+.course-bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 50;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+}
+
+#course-step-indicator {
+  font-size: 14px;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+/* ===================== Dialogue Bubble Styles ===================== */
+.dialogue-scenario-card {
+  background: #F0F8FF;
+  border-left: 4px solid var(--info);
+}
+
+.dialogue-scenario-text {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+.dialogue-scene {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.dialogue-scene-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialogue-scene-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--primary);
+}
+
+.dialogue-scene-location {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.dialogue-play-all {
+  margin-left: auto;
+}
+
+.dialogue-bubble-wrapper {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.dialogue-bubble-wrapper.user {
+  justify-content: flex-end;
+}
+
+.dialogue-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFD166, #FF6B35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.dialogue-bubble-wrapper.user .dialogue-avatar {
+  background: linear-gradient(135deg, #2d6a4f, #40916c);
+  font-size: 18px;
+}
+
+.dialogue-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  position: relative;
+}
+
+.dialogue-bubble.other {
+  background: #F0F0F0;
+  border-top-left-radius: 4px;
+}
+
+.dialogue-bubble.user {
+  background: #2d6a4f;
+  color: white;
+  border-top-right-radius: 4px;
+}
+
+.dialogue-bubble.user .dialogue-speaker {
+  color: rgba(255,255,255,0.8);
+}
+
+.dialogue-speaker {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.dialogue-text {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.dialogue-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.dialogue-play-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.dialogue-play-btn:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+.dialogue-expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+.dialogue-detail {
+  display: none;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0,0,0,0.1);
+  font-size: 13px;
+}
+
+.dialogue-detail.show {
+  display: block;
+}
+
+.dialogue-bubble.user .dialogue-detail {
+  border-top-color: rgba(255,255,255,0.2);
+}
+
+.dialogue-jyutping {
+  color: var(--text-light);
+  font-size: 13px;
+}
+
+.dialogue-mandarin {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.dialogue-bubble.user .dialogue-jyutping,
+.dialogue-bubble.user .dialogue-mandarin {
+  color: rgba(255,255,255,0.75);
+}
+
+/* ===================== Vocabulary Flip Cards ===================== */
+.vocab-flip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.vocab-flip-card {
+  perspective: 800px;
+  height: 180px;
+  cursor: pointer;
+}
+
+.vocab-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.5s;
+  transform-style: preserve-3d;
+}
+
+.vocab-flip-card.flipped .vocab-flip-inner {
+  transform: rotateY(180deg);
+}
+
+.vocab-flip-front,
+.vocab-flip-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.vocab-flip-front {
+  background: white;
+  border: 2px solid var(--border);
+}
+
+.vocab-flip-back {
+  background: #FFF8F0;
+  border: 2px solid var(--secondary);
+  transform: rotateY(180deg);
+  align-items: flex-start;
+}
+
+.vocab-flip-word {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.vocab-flip-jyutping {
+  font-size: 14px;
+  color: var(--text-light);
+  margin: 4px 0;
+}
+
+.vocab-entering-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.vocab-flip-meaning {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.vocab-flip-mnemonic {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-bottom: 4px;
+}
+
+.vocab-flip-scene {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vocab-flip-tone {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 4px;
+  padding: 2px 6px;
+  background: #FDEDEC;
+  border-radius: 4px;
+}
+
+/* ===================== Grammar Module ===================== */
+.grammar-card {
+  border-left: 4px solid var(--info);
+}
+
+.grammar-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.grammar-usage {
+  font-size: 14px;
+  color: var(--text-light);
+  background: #F0F8FF;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.grammar-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grammar-example-item {
+  background: #FAFAFA;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.grammar-example-canto {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.grammar-example-jp {
+  font-size: 13px;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+
+.grammar-example-zh {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ===================== Culture Module ===================== */
+.culture-card {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.culture-card:hover {
+  border-color: var(--secondary);
+}
+
+.culture-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.culture-card-header h3 {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.culture-card-icon {
+  font-size: 24px;
+}
+
+.culture-expand-arrow {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: transform 0.3s;
+}
+
+.culture-card.expanded .culture-expand-arrow {
+  transform: rotate(180deg);
+}
+
+.culture-card-body {
+  display: none;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+.culture-card.expanded .culture-card-body {
+  display: block;
+}
+
+/* ===================== Practice Module ===================== */
+.practice-section {
+  margin-bottom: 24px;
+}
+
+.practice-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.practice-desc {
+  font-size: 14px;
+  color: var(--text-light);
+  margin-bottom: 12px;
+}
+
+.practice-scene-card {
+  padding: 16px;
+}
+
+.practice-scene-prompt {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.practice-options .option-item {
+  cursor: pointer;
+}
+
+.practice-options.answered .option-item {
+  cursor: default;
+}
+
+.practice-feedback {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fill-practice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fill-practice-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fill-practice-q {
+  font-size: 15px;
+  font-weight: 600;
+  min-width: 180px;
+}
+
+.fill-practice-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 8px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-family: var(--font);
+}
+
+.fill-practice-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.fill-practice-answer {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.fill-practice-wrong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.listening-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.listening-match-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: #FAFAFA;
+  border-radius: var(--radius-sm);
+}
+
+.listening-match-canto {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary);
+  flex: 1;
+}
+
+.listening-match-arrow {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.listening-match-mandarin {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.listening-reveal-btn {
+  font-size: 12px;
+}
+
+/* ===================== Old Course Content (keep for legacy courses) ===================== */
 .course-content-section {
   margin-bottom: 24px;
 }
@@ -989,6 +1615,14 @@ a { text-decoration: none; color: var(--primary); }
     grid-template-columns: 1fr;
   }
 
+  .vocab-flip-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vocab-flip-card {
+    height: 160px;
+  }
+
   .vs-display {
     flex-direction: column;
     gap: 16px;
@@ -996,6 +1630,27 @@ a { text-decoration: none; color: var(--primary); }
 
   .profile-stats {
     gap: 16px;
+  }
+
+  .course-module-tab {
+    font-size: 11px;
+    padding: 8px 8px;
+  }
+
+  .dialogue-text {
+    font-size: 16px;
+  }
+
+  .dialogue-bubble {
+    max-width: 85%;
+  }
+
+  .dialogue-bubble-wrapper.user {
+    padding-left: 20px;
+  }
+
+  .dialogue-bubble-wrapper.other {
+    padding-right: 20px;
   }
 }
 
