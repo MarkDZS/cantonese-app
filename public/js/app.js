@@ -372,6 +372,13 @@ const App = {
   _currentModule: 0,
   _courseData: null,
 
+  // Recording state
+  _mediaRecorder: null,
+  _recordedChunks: [],
+  _recordingTarget: null,
+  _speechRecognition: null,
+  _recognitionResult: '',
+
   async renderCourseDetail(courseId) {
     const main = document.getElementById('main-content');
     showLoading(main);
@@ -576,14 +583,15 @@ const App = {
 
       (scene.lines || []).forEach((line, li) => {
         const isUser = line.speaker === '你';
+        const lineVoice = this._getVoiceForSpeaker(line.speaker);
         html += `
           <div class="dialogue-bubble-wrapper ${isUser ? 'user' : 'other'}">
             ${!isUser ? `<div class="dialogue-avatar">${escapeHtml(line.speaker.slice(0, 1))}</div>` : ''}
             <div class="dialogue-bubble ${isUser ? 'user' : 'other'}">
-              <div class="dialogue-speaker">${escapeHtml(line.speaker)}</div>
+              <div class="dialogue-speaker">${escapeHtml(line.speaker)} ${lineVoice === 'Kiki' ? '👩' : '👨'}</div>
               <div class="dialogue-text">${escapeHtml(line.text)}</div>
               <div class="dialogue-actions">
-                <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(line.text).replace(/'/g, "\\'")}')" title="播放">🔊</button>
+                <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(line.text).replace(/'/g, "\\'")}', '${lineVoice}')" title="播放 (${lineVoice === 'Kiki' ? '女声' : '男声'})">🔊</button>
                 <button class="dialogue-expand-btn" onclick="this.closest('.dialogue-bubble-wrapper').querySelector('.dialogue-detail').classList.toggle('show')" title="展开详情">▼</button>
               </div>
               <div class="dialogue-detail">
@@ -612,7 +620,7 @@ const App = {
             <div class="vocab-flip-front">
               <div class="vocab-flip-word">${escapeHtml(w.word)}</div>
               <div class="vocab-flip-jyutping">${escapeHtml(w.jyutping)}</div>
-              <button class="dialogue-play-btn" onclick="event.stopPropagation(); App.speakText('${escapeHtml(w.word).replace(/'/g, "\\'")}')" title="播放发音">🔊</button>
+              <button class="dialogue-play-btn" onclick="event.stopPropagation(); App.speakText('${escapeHtml(w.word).replace(/'/g, "\\'")}', 'vocab')" title="播放发音">🔊</button>
               ${w.enteringTone ? '<span class="vocab-entering-badge">入</span>' : ''}
             </div>
             <div class="vocab-flip-back">
@@ -633,19 +641,60 @@ const App = {
     const patterns = module.patterns || [];
     let html = '';
 
-    patterns.forEach(p => {
+    patterns.forEach((p, pi) => {
       html += `
         <div class="grammar-card card mb-16">
           <h3 class="grammar-title">📖 ${escapeHtml(p.name)}</h3>
           <div class="grammar-usage">${escapeHtml(p.usage)}</div>
           <div class="grammar-examples">
-            ${(p.examples || []).map(ex => `
-              <div class="grammar-example-item">
-                <div class="grammar-example-canto">🗣 ${escapeHtml(ex.canto)}</div>
-                <div class="grammar-example-jp">🔤 ${escapeHtml(ex.jyutping)}</div>
-                <div class="grammar-example-zh">🇨🇳 ${escapeHtml(ex.mandarin)}</div>
-              </div>
-            `).join('')}
+            ${(p.examples || []).map((ex, ei) => {
+              const exId = `grammar-ex-${pi}-${ei}`;
+              return `
+              <div class="grammar-example-item" id="${exId}">
+                <div class="grammar-example-main">
+                  <div class="grammar-example-info">
+                    <div class="grammar-example-canto">🗣 ${escapeHtml(ex.canto)}</div>
+                    <div class="grammar-example-jp">🔤 ${escapeHtml(ex.jyutping)}</div>
+                    <div class="grammar-example-zh">🇨🇳 ${escapeHtml(ex.mandarin)}</div>
+                    <div class="grammar-example-actions">
+                      <button class="grammar-act-btn grammar-play-btn"
+                        onclick="App.speakText('${escapeHtml(ex.canto).replace(/'/g, "\\\\'")}', 'Kiki')"
+                        title="标准发音">🔊 听发音</button>
+                      <button class="grammar-act-btn grammar-record-btn"
+                        id="grammar-rec-${pi}-${ei}"
+                        onclick="App.toggleRecord(this, '${escapeHtml(ex.canto).replace(/'/g, "\\\\'")}')"
+                        title="录音跟读">🎤 跟读</button>
+                    </div>
+                  </div>
+                  <div class="grammar-score-col">
+                    <div class="grammar-score-label">发音得分</div>
+                    <div class="grammar-score-value" id="grammar-scorev-${pi}-${ei}">--</div>
+                  </div>
+                </div>
+                <div class="grammar-record-compare" id="grammar-comp-${pi}-${ei}" style="display:none;" data-target-text="${escapeHtml(ex.canto).replace(/"/g, '&quot;')}">
+                  <div class="grammar-compare-header">
+                    <span class="grammar-compare-label">📝 发音对比</span>
+                    <div class="grammar-compare-row">
+                      <button class="grammar-compare-play" onclick="event.stopPropagation(); App.speakText('${escapeHtml(ex.canto).replace(/'/g, "\\\\'")}', 'Kiki')">
+                        🔊 标准
+                      </button>
+                      <button class="grammar-compare-play grammar-compare-user"
+                        id="grammar-userplay-${pi}-${ei}"
+                        onclick="event.stopPropagation(); App.playUserRecording('grammar-comp-${pi}-${ei}')">
+                        ▶️ 我的发音
+                      </button>
+                      <button class="grammar-compare-retry"
+                        onclick="event.stopPropagation(); App.retryRecording('grammar-comp-${pi}-${ei}', 'grammar-rec-${pi}-${ei}', '${escapeHtml(ex.canto).replace(/'/g, "\\\\'")}')">
+                        🔄 重录
+                      </button>
+                    </div>
+                  </div>
+                  <div class="grammar-eval-detail" id="grammar-eval-${pi}-${ei}">
+                    <div class="eval-item eval-wait">⏳ 正在分析发音...</div>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
           </div>
         </div>`;
     });
@@ -716,7 +765,7 @@ const App = {
         (ex.items || []).forEach((item, mi) => {
           html += `
             <div class="listening-match-item">
-              <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(item.canto).replace(/'/g, "\\'")}')" title="播放">🔊</button>
+              <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(item.canto).replace(/'/g, "\\'")}', 'practice')" title="播放">🔊</button>
               <span class="listening-match-canto">${escapeHtml(item.canto)}</span>
               <span class="listening-match-arrow">→</span>
               <span class="listening-match-mandarin" style="display:none;">${escapeHtml(item.mandarin)}</span>
@@ -788,22 +837,407 @@ const App = {
     
     const scene = module.scenes[sceneIndex];
     if (scene.lines && scene.lines.length > 0) {
-      // Speak first line to indicate play
-      this.speakText(scene.lines[0].text);
+      // Speak all lines in sequence with role-appropriate voices
+      this._speakSequence(scene.lines);
       showToast('🔊 正在播放场景对话...');
     }
   },
 
-  speakText(text) {
+  _getVoiceForSpeaker(speaker) {
+    // Female speakers -> Kiki, male speakers -> Rocky
+    const femaleNames = ['Amy', 'amy', '阿清', '嘉欣', 'May', 'may', 'Sandy', 'sandy', '阿美', '阿芳', 'Jenny', 'jenny', '阿红', '阿玲', '阿珍'];
+    const maleNames = ['Ken', 'ken', '阿强', '張經理', '张经理', '阿达', '阿明', 'Michael', 'michael', 'Sam', 'sam', 'David', 'david', '阿杰', '阿伟', 'Peter', 'peter'];
+    
+    if (femaleNames.some(n => speaker.includes(n))) return 'Kiki';
+    if (maleNames.some(n => speaker.includes(n))) return 'Rocky';
+    // Default: user/learner -> Kiki, others -> Rocky
+    if (speaker === '你') return 'Kiki';
+    return 'Rocky';
+  },
+
+  _speakSequence(lines, index = 0) {
+    if (index >= lines.length) return;
+    const voice = this._getVoiceForSpeaker(lines[index].speaker);
+    this.speakText(lines[index].text, voice, () => {
+      setTimeout(() => this._speakSequence(lines, index + 1), 600);
+    });
+  },
+
+  speakText(text, voiceOrCallback = null, onEnd = null) {
+    // Signature: speakText(text, voice?, onEnd?)
+    // Backward compat: if second arg is not a known voice and not a function, treat as legacy (no voice)
+    const KNOWN_VOICES = ['Kiki', 'Rocky'];
+    let voice = null;
+    let callback = onEnd;
+    
+    if (typeof voiceOrCallback === 'function') {
+      callback = voiceOrCallback;
+    } else if (KNOWN_VOICES.includes(voiceOrCallback)) {
+      voice = voiceOrCallback;
+    }
+    // else: legacy contentType like 'vocab'/'practice'/'dialogue' → no voice, let server use default
+
+    const body = { text };
+    if (voice) body.voice = voice;
+
+    // Try backend TTS API first
+    fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    .then(res => {
+      if (res.ok) return res.blob();
+      throw new Error('TTS API failed');
+    })
+    .then(blob => {
+      const audio = new Audio(URL.createObjectURL(blob));
+      if (callback) audio.onended = callback;
+      audio.play().catch(() => {
+        this._browserSpeak(text, callback);
+      });
+    })
+    .catch(() => {
+      this._browserSpeak(text, callback);
+    });
+  },
+
+  _browserSpeak(text, onEnd = null) {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'zh-HK';
       utterance.rate = 0.85;
+      if (onEnd) utterance.onend = onEnd;
       window.speechSynthesis.speak(utterance);
     } else {
       showToast('浏览器不支持语音播放', 'error');
     }
+  },
+
+  // ===================== Recording =====================
+  async toggleRecord(btn, text) {
+    // If already recording, stop
+    if (this._mediaRecorder && this._mediaRecorder.state === 'recording') {
+      this._stopRecording();
+      return;
+    }
+
+    // Start new recording
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this._mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      this._recordedChunks = [];
+      this._recordingTarget = btn.id;
+      this._recognitionResult = '';
+
+      // ====== Start Speech Recognition simultaneously ======
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        this._speechRecognition = new SpeechRecognition();
+        this._speechRecognition.lang = 'zh-HK'; // Cantonese
+        this._speechRecognition.interimResults = true;
+        this._speechRecognition.continuous = true;
+        this._speechRecognition.maxAlternatives = 1;
+
+        this._speechRecognition.onresult = (event) => {
+          let transcript = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+          }
+          this._recognitionResult = transcript;
+          // Show live recognition feedback on button
+          if (transcript) {
+            btn.textContent = '⏹ 识别中...';
+          }
+        };
+
+        this._speechRecognition.onerror = (event) => {
+          console.warn('Speech recognition error:', event.error);
+        };
+
+        this._speechRecognition.start();
+      }
+
+      this._mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) this._recordedChunks.push(e.data);
+      };
+
+      this._mediaRecorder.onstop = () => {
+        // Stop all tracks
+        stream.getTracks().forEach(t => t.stop());
+
+        // Stop recognition
+        if (this._speechRecognition) {
+          try { this._speechRecognition.stop(); } catch(e) {}
+        }
+
+        // Save recording
+        const blob = new Blob(this._recordedChunks, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+
+        // Find the compare area & evaluate
+        const compId = this._recordingTarget.replace('grammar-rec-', 'grammar-comp-');
+        const compDiv = document.getElementById(compId);
+        if (compDiv) {
+          compDiv.style.display = 'block';
+          compDiv.dataset.audioUrl = url;
+
+          // Evaluate pronunciation and update UI
+          const targetText = compDiv.dataset.targetText || '';
+          this._evaluatePronunciation(compId, targetText);
+        }
+
+        // Reset button
+        btn.classList.remove('recording');
+        btn.textContent = '🎤 跟读';
+        this._mediaRecorder = null;
+        this._speechRecognition = null;
+      };
+
+      this._mediaRecorder.start();
+      btn.classList.add('recording');
+      btn.textContent = '⏹ 停止';
+
+      // Auto-stop after 8 seconds
+      setTimeout(() => {
+        if (this._mediaRecorder && this._mediaRecorder.state === 'recording') {
+          this._stopRecording();
+        }
+      }, 8000);
+
+    } catch (err) {
+      showToast('无法访问麦克风，请检查浏览器权限', 'error');
+      console.error('Mic access error:', err);
+    }
+  },
+
+  _stopRecording() {
+    if (this._mediaRecorder && this._mediaRecorder.state === 'recording') {
+      this._mediaRecorder.stop();
+    }
+  },
+
+  /**
+   * Evaluate pronunciation by comparing recognition result with target text.
+   * Produces a multi-dimensional score and comprehensive feedback.
+   */
+  _evaluatePronunciation(compId, targetText) {
+    const compDiv = document.getElementById(compId);
+    if (!compDiv) return;
+
+    const recognized = (this._recognitionResult || '').trim();
+    const target = targetText.trim();
+
+    // Score element is outside the compare div, find by ID pattern
+    const scoreId = compId.replace('grammar-comp-', 'grammar-scorev-');
+    const scoreEl = document.getElementById(scoreId);
+    const detailEl = compDiv.querySelector('.grammar-eval-detail');
+    const evalId = compId.replace('grammar-comp-', 'grammar-eval-');
+    const detailEl2 = document.getElementById(evalId) || detailEl;
+
+    if (!recognized || !target) {
+      // Recognition failed or empty
+      if (scoreEl) {
+        scoreEl.textContent = '--';
+        scoreEl.className = 'grammar-score-value score-unknown';
+      }
+      if (detailEl2) {
+        detailEl2.innerHTML = `
+          <div class="eval-item eval-warn">⚠️ 未能识别到语音，请检查麦克风权限或重试</div>
+          <div class="eval-item eval-tip">💡 提示：请使用 Chrome 浏览器，并在安静环境下跟读</div>`;
+      }
+      return;
+    }
+
+    // ====== Scoring Algorithm ======
+    const result = this._calcPronunciationScore(target, recognized);
+
+    // Update score circle
+    if (scoreEl) {
+      scoreEl.textContent = result.overall;
+      scoreEl.className = 'grammar-score-value ' + (
+        result.overall >= 80 ? 'score-high' :
+        result.overall >= 60 ? 'score-mid' : 'score-low'
+      );
+    }
+
+    // Update detailed evaluation
+    if (detailEl2) {
+      const stars = result.overall >= 90 ? '⭐⭐⭐⭐⭐' :
+                    result.overall >= 75 ? '⭐⭐⭐⭐' :
+                    result.overall >= 55 ? '⭐⭐⭐' :
+                    result.overall >= 35 ? '⭐⭐' : '⭐';
+
+      const dimLabels = {
+        accuracy: { icon: '🎯', name: '发音准确度' },
+        completeness: { icon: '📝', name: '内容完整度' },
+        fluency: { icon: '🌊', name: '流畅度' }
+      };
+
+      const dimsHtml = ['accuracy', 'completeness', 'fluency'].map(k => {
+        const d = result.dimensions[k];
+        const barColor = d.score >= 80 ? '#27AE60' : d.score >= 50 ? '#F39C12' : '#E74C3C';
+        return `
+          <div class="eval-dim-item">
+            <span class="eval-dim-label">${dimLabels[k].icon} ${dimLabels[k].name}</span>
+            <div class="eval-dim-bar-wrap">
+              <div class="eval-dim-bar" style="width:${d.score}%;background:${barColor};"></div>
+            </div>
+            <span class="eval-dim-pct">${d.score}分</span>
+          </div>`;
+      }).join('');
+
+      detailEl2.innerHTML = `
+        <div class="eval-overall-row">
+          <div class="eval-stars">${stars}</div>
+          <div class="eval-summary">${result.summary}</div>
+        </div>
+        <div class="eval-dims">${dimsHtml}</div>
+        <div class="eval-compare-row">
+          <div class="eval-compare-col">
+            <div class="eval-compare-label">📢 你说的是：</div>
+            <div class="eval-compare-text eval-user-text">${escapeHtml(recognized)}</div>
+          </div>
+          <div class="eval-compare-col">
+            <div class="eval-compare-label">🎯 标准发音：</div>
+            <div class="eval-compare-text eval-target-text">${escapeHtml(target)}</div>
+          </div>
+        </div>
+        <div class="eval-suggestions">
+          <div class="eval-suggest-title">💡 改进建议</div>
+          ${result.suggestions.map(s => `<div class="eval-suggest-item">${s}</div>`).join('')}
+        </div>`;
+    }
+  },
+
+  /**
+   * Calculate pronunciation score by comparing recognized text with target.
+   */
+  _calcPronunciationScore(target, recognized) {
+    // 1. Accuracy: character-level matching
+    const targetChars = target.replace(/\s+/g, '').split('');
+    const recChars = recognized.replace(/\s+/g, '').split('');
+
+    let matchCount = 0;
+    const maxLen = Math.max(targetChars.length, recChars.length);
+    const minLen = Math.min(targetChars.length, recChars.length);
+
+    // Simple edit-distance-based accuracy
+    for (let i = 0; i < minLen; i++) {
+      if (targetChars[i] === recChars[i]) matchCount++;
+    }
+    // Penalty for extra/missing chars
+    const lengthPenalty = Math.abs(targetChars.length - recChars.length) * 0.5;
+    const accuracyScore = maxLen > 0
+      ? Math.max(0, Math.round((matchCount / maxLen) * 100) - lengthPenalty)
+      : 0;
+
+    // 2. Completeness: how much of the target was covered
+    const targetSet = new Set(targetChars);
+    let coveredCount = 0;
+    targetSet.forEach(ch => {
+      if (recChars.includes(ch)) coveredCount++;
+    });
+    const completenessScore = targetSet.size > 0
+      ? Math.round((coveredCount / targetSet.size) * 100)
+      : 0;
+
+    // 3. Fluency: rough estimate based on recognized text structure
+    // More recognized chars with reasonable ratio = better fluency
+    let fluencyScore = 50; // Base
+    if (recChars.length >= targetChars.length * 0.5) fluencyScore += 20;
+    if (recChars.length <= targetChars.length * 1.5) fluencyScore += 15;
+    if (matchCount >= minLen * 0.5) fluencyScore += 15;
+    fluencyScore = Math.min(100, fluencyScore);
+
+    // Overall weighted score
+    const overall = Math.round(accuracyScore * 0.5 + completenessScore * 0.3 + fluencyScore * 0.2);
+
+    // Summary text
+    let summary, suggestions = [];
+    if (overall >= 85) {
+      summary = '非常优秀！发音地道，几乎与标准一致。';
+      suggestions = ['继续保持，可以尝试更快的语速'];
+    } else if (overall >= 70) {
+      summary = '表现不错！大部分发音正确，还有提升空间。';
+      suggestions = [
+        '部分声母/韵母可更精准，建议多听标准发音对比',
+        '注意粤语的入声字要短促有力'
+      ];
+    } else if (overall >= 50) {
+      summary = '基本能辨认，但发音偏差较明显，需要多加练习。';
+      suggestions = [
+        '建议逐字跟读，先确保每个字的声调准确',
+        '注意粤语六声九调的区别，多用拼音辅助',
+        '可放慢语速，先求准再求快'
+      ];
+    } else if (overall >= 25) {
+      summary = '发音差异较大，建议重新跟读并仔细听标准发音。';
+      suggestions = [
+        '先从单个词语开始练习，建立正确的发音习惯',
+        '注意粤语与普通话发音部位的差异',
+        '建议反复听标准发音，逐音节模仿'
+      ];
+    } else {
+      summary = '识别结果与目标差异很大，别灰心，继续努力！';
+      suggestions = [
+        '确保用粤语（广州话）发音，不是普通话',
+        '可以先听几遍标准发音再尝试跟读',
+        '建议开启慢速模式，逐字学习'
+      ];
+    }
+
+    // Add targeted suggestions based on dimensions
+    if (accuracyScore < 50) {
+      suggestions.push('🔊 点击"标准"按钮反复听，重点对比自己不准确的音');
+    }
+    if (completenessScore < 50) {
+      suggestions.push('📝 跟读时尽量说完完整句子，不要漏字');
+    }
+
+    return {
+      overall,
+      dimensions: {
+        accuracy: { score: accuracyScore },
+        completeness: { score: completenessScore },
+        fluency: { score: fluencyScore }
+      },
+      summary,
+      suggestions: [...new Set(suggestions)].slice(0, 4)
+    };
+  },
+
+  playUserRecording(compId) {
+    const compDiv = document.getElementById(compId);
+    if (!compDiv || !compDiv.dataset.audioUrl) {
+      showToast('请先录音', 'error');
+      return;
+    }
+    const audio = new Audio(compDiv.dataset.audioUrl);
+    audio.play().catch(() => showToast('播放失败', 'error'));
+  },
+
+  retryRecording(compId, recBtnId, text) {
+    // Hide compare area
+    const compDiv = document.getElementById(compId);
+    if (compDiv) {
+      compDiv.style.display = 'none';
+      if (compDiv.dataset.audioUrl) {
+        URL.revokeObjectURL(compDiv.dataset.audioUrl);
+        delete compDiv.dataset.audioUrl;
+      }
+    }
+    // Reset score
+    const scoreId = compId.replace('grammar-comp-', 'grammar-scorev-');
+    const scoreEl = document.getElementById(scoreId);
+    if (scoreEl) {
+      scoreEl.textContent = '--';
+      scoreEl.className = 'grammar-score-value';
+    }
+    // Re-trigger recording
+    const btn = document.getElementById(recBtnId);
+    if (btn) this.toggleRecord(btn, text);
   },
 
   async startCourse(courseId) {

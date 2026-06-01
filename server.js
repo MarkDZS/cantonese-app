@@ -1,9 +1,12 @@
+require('dotenv').config();
+
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
+const TtsService = require('./services/tts');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1102,6 +1105,52 @@ app.get('/api/feed', requireAuth, (req, res) => {
   }
 });
 
+// ==================== TTS ROUTES ====================
+// POST /api/tts - Synthesize Cantonese speech
+app.post('/api/tts', (req, res) => {
+  try {
+    const { text, type, voice } = req.body;
+
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ error: '缺少文本参数' });
+    }
+
+    if (text.length > 500) {
+      return res.status(400).json({ error: '文本过长，最多500字' });
+    }
+
+    if (!TtsService.isConfigured()) {
+      return res.status(503).json({ error: 'TTS服务未配置，请设置DASHSCOPE_API_KEY' });
+    }
+
+    TtsService.getSpeech(text, voice || null, type || 'default')
+      .then(audioBuffer => {
+        res.set({
+          'Content-Type': 'audio/mpeg',
+          'Content-Length': audioBuffer.length,
+          'Cache-Control': 'public, max-age=3600'
+        });
+        res.send(audioBuffer);
+      })
+      .catch(err => {
+        console.error('TTS error:', err.message);
+        res.status(500).json({ error: '语音合成失败: ' + err.message });
+      });
+  } catch (err) {
+    console.error('TTS route error:', err);
+    res.status(500).json({ error: 'TTS请求处理失败' });
+  }
+});
+
+// GET /api/tts/info - Check TTS service status
+app.get('/api/tts/info', (req, res) => {
+  res.json({
+    configured: TtsService.isConfigured(),
+    model: TtsService.TTS_MODEL,
+    voice: TtsService.TTS_VOICE
+  });
+});
+
 // ==================== SERVE SPA ====================
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1112,4 +1161,9 @@ app.listen(PORT, () => {
   console.log(`🦁 粤讲粤掂 服务器启动成功！`);
   console.log(`📍 http://localhost:${PORT}`);
   console.log(`👤 Demo账号: demo / demo123`);
+  if (TtsService.isConfigured()) {
+    console.log(`🔊 TTS粤语语音服务已启用 (${TtsService.TTS_MODEL})`);
+  } else {
+    console.log(`⚠️  TTS未配置，语音播放将使用浏览器内置TTS`);
+  }
 });
