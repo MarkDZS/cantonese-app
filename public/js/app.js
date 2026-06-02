@@ -634,6 +634,132 @@ const App = {
     });
 
     html += '</div>';
+
+    // Number reference table (for 数字与日期 course)
+    if (module.numberTable && this._courseData && this._courseData.number_reference) {
+      const numRef = this._courseData.number_reference;
+      html += `
+        <div class="card mt-16" style="border:2px solid #e8a838;">
+          <div class="number-ref-header" onclick="this.closest('.card').classList.toggle('expanded');" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="margin:0;font-size:15px;">📖 粤语数字速查表</h3>
+            <span class="culture-expand-arrow">▼</span>
+          </div>
+          <div class="number-ref-body" style="display:none;">
+            <div class="number-ref-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px;">
+              ${(numRef.digits || []).map(d => `
+                <div class="number-ref-cell" style="background:#FFF8EE;border-radius:8px;padding:8px 4px;text-align:center;font-size:12px;">
+                  <div style="font-size:20px;font-weight:700;color:#e8a838;">${d.num}</div>
+                  <div style="font-weight:600;color:#2d6a4f;">${escapeHtml(d.canto)}</div>
+                  <div style="color:var(--text-muted);font-size:11px;">${escapeHtml(d.jyutping)}</div>
+                  <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(d.canto).replace(/'/g, "\\'")}', 'vocab')" style="font-size:10px;padding:2px 6px;" title="播放发音">🔊</button>
+                </div>
+              `).join('')}
+            </div>
+            <div class="number-ref-special" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #eee;">
+              ${(numRef.special || []).map(s => `
+                <div class="number-ref-cell" style="background:#FFF0E6;border-radius:8px;padding:6px 10px;text-align:center;font-size:12px;">
+                  <div style="font-size:14px;font-weight:700;color:#e8a838;">${s.num}</div>
+                  <div style="font-weight:600;color:#2d6a4f;">${escapeHtml(s.canto)}</div>
+                  <div style="color:var(--text-muted);font-size:11px;">${escapeHtml(s.jyutping)}${s.note ? ' (' + escapeHtml(s.note) + ')' : ''}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+        <script>
+          // Initialize number ref table toggle
+          (function() {
+            const header = document.querySelector('.number-ref-header');
+            const body = document.querySelector('.number-ref-body');
+            if (header && body) {
+              header.addEventListener('click', function() {
+                const card = this.closest('.card');
+                if (card.classList.contains('expanded')) {
+                  card.classList.remove('expanded');
+                  body.style.display = 'none';
+                  this.querySelector('.culture-expand-arrow').textContent = '▼';
+                } else {
+                  card.classList.add('expanded');
+                  body.style.display = 'block';
+                  this.querySelector('.culture-expand-arrow').textContent = '▲';
+                }
+              });
+            }
+          })();
+        </script>`;
+    }
+
+    // Department & Position reference tables (for 公司组织架构 course)
+    if (module.showDeptRef && this._courseData && this._courseData.departments) {
+      const depts = this._courseData.departments;
+      html += `
+        <div class="card mt-16" style="border:2px solid #4a90d9;">
+          <div class="ref-header ref-header-dept" onclick="var c=this.closest('.card');var b=c.querySelector('.ref-body-dept');var a=this.querySelector('.culture-expand-arrow');if(c.classList.contains('expanded')){c.classList.remove('expanded');b.style.display='none';a.textContent='▼'}else{c.classList.add('expanded');b.style.display='block';a.textContent='▲'}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="margin:0;font-size:15px;">🏢 常见部门粤语名称一览</h3>
+            <span class="culture-expand-arrow">▼</span>
+          </div>
+          <div class="ref-body-dept" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;">
+              ${depts.map(d => `
+                <div class="ref-cell" style="background:#F0F6FF;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                  <span style="font-weight:600;color:#2d6a4f;">${escapeHtml(d.name)}</span>
+                  <span style="color:var(--text-muted);font-size:12px;">${escapeHtml(d.jyutping)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (module.showPositionRef && this._courseData && this._courseData.positions) {
+      const pos = this._courseData.positions;
+      html += `
+        <div class="card mt-16" style="border:2px solid #e8a838;">
+          <div class="ref-header ref-header-pos" onclick="var c=this.closest('.card');var b=c.querySelector('.ref-body-pos');var a=this.querySelector('.culture-expand-arrow');if(c.classList.contains('expanded')){c.classList.remove('expanded');b.style.display='none';a.textContent='▼'}else{c.classList.add('expanded');b.style.display='block';a.textContent='▲'}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="margin:0;font-size:15px;">💼 常见职位粤语名称一览</h3>
+            <span class="culture-expand-arrow">▼</span>
+          </div>
+          <div class="ref-body-pos" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;">
+              ${pos.map(p => `
+                <div class="ref-cell" style="background:#FFF8EE;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:13px;">
+                  <span style="font-weight:600;color:#2d6a4f;">${escapeHtml(p.title)}</span>
+                  <span style="color:var(--text-muted);font-size:12px;">${escapeHtml(p.jyutping)}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // Email terms reference table (for 电邮基本用语 course)
+    if (module.showEmailTerms && this._courseData && this._courseData.email_terms) {
+      const terms = this._courseData.email_terms;
+      html += `
+        <div class="card mt-16" style="border:2px solid #2d6a4f;">
+          <div class="ref-header ref-header-email" onclick="var c=this.closest('.card');var b=c.querySelector('.ref-body-email');var a=this.querySelector('.culture-expand-arrow');if(c.classList.contains('expanded')){c.classList.remove('expanded');b.style.display='none';a.textContent='▼'}else{c.classList.add('expanded');b.style.display='block';a.textContent='▲'}" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="margin:0;font-size:15px;">📧 电邮常用动作中英对照表</h3>
+            <span class="culture-expand-arrow">▼</span>
+          </div>
+          <div class="ref-body-email" style="display:none;">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:12px;">
+              <div style="font-weight:700;font-size:12px;color:var(--text-muted);padding:6px 4px;text-align:center;background:#E8F5E9;border-radius:4px;">动作</div>
+              <div style="font-weight:700;font-size:12px;color:var(--text-muted);padding:6px 4px;text-align:center;background:#E8F5E9;border-radius:4px;">粤语/英文</div>
+              <div style="font-weight:700;font-size:12px;color:var(--text-muted);padding:6px 4px;text-align:center;background:#E8F5E9;border-radius:4px;">普通话</div>
+              <div style="font-weight:700;font-size:12px;color:var(--text-muted);padding:6px 4px;text-align:center;background:#E8F5E9;border-radius:4px;">发音</div>
+              ${terms.map(t => `
+                <div style="padding:6px 4px;text-align:center;font-size:12px;font-weight:600;border-bottom:1px solid #eee;">${escapeHtml(t.action)}</div>
+                <div style="padding:6px 4px;text-align:center;font-size:12px;color:#2d6a4f;border-bottom:1px solid #eee;">${escapeHtml(t.canto)}</div>
+                <div style="padding:6px 4px;text-align:center;font-size:12px;border-bottom:1px solid #eee;">${escapeHtml(t.mandarin)}</div>
+                <div style="padding:6px 4px;text-align:center;font-size:12px;border-bottom:1px solid #eee;">
+                  <button class="dialogue-play-btn" onclick="App.speakText('${escapeHtml(t.canto).replace(/'/g, "\\'")}', 'vocab')" style="font-size:10px;padding:2px 6px;" title="播放">🔊</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>`;
+    }
+
     container.innerHTML = html;
   },
 
@@ -845,8 +971,8 @@ const App = {
 
   _getVoiceForSpeaker(speaker) {
     // Female speakers -> Kiki, male speakers -> Rocky
-    const femaleNames = ['Amy', 'amy', '阿清', '嘉欣', 'May', 'may', 'Sandy', 'sandy', '阿美', '阿芳', 'Jenny', 'jenny', '阿红', '阿玲', '阿珍'];
-    const maleNames = ['Ken', 'ken', '阿强', '張經理', '张经理', '阿达', '阿明', 'Michael', 'michael', 'Sam', 'sam', 'David', 'david', '阿杰', '阿伟', 'Peter', 'peter'];
+    const femaleNames = ['Amy', 'amy', '阿清', '嘉欣', 'May', 'may', 'Sandy', 'sandy', '阿美', '阿芳', 'Jenny', 'jenny', '阿红', '阿玲', '阿珍', 'Sarah', 'sarah', 'HR', '秘書', '秘书', 'Maggie', 'maggie', '行政', '同事A'];
+    const maleNames = ['Ken', 'ken', '阿强', '張經理', '张经理', '張Manager', 'Manager', '阿达', '阿明', 'Michael', 'michael', 'Sam', 'sam', 'David', 'david', '阿杰', '阿伟', 'Peter', 'peter', 'Vendor', 'vendor', 'Wilson', 'wilson', 'Thomas', 'thomas', '阿輝', '阿辉', '阿叔', '侍應', '同事們'];
     
     if (femaleNames.some(n => speaker.includes(n))) return 'Kiki';
     if (maleNames.some(n => speaker.includes(n))) return 'Rocky';
