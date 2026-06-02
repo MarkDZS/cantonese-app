@@ -1819,7 +1819,203 @@ a { text-decoration: none; color: var(--primary); }
   color: var(--text-light);
 }
 
-/* ===================== Activity Heatmap ===================== */
+/* ===================== Activity Heatmap (GitHub-style) ===================== */
+.activity-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px 20px 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.activity-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.activity-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.activity-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  margin-left: auto;
+}
+
+.activity-stats strong {
+  color: #2d6a4f;
+  font-weight: 700;
+}
+
+.activity-stats .stat-streak strong {
+  color: #e8a838;
+}
+
+/* Month Navigator */
+.month-navigator {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.nav-btn {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6b7280;
+  transition: all 0.2s;
+  font-family: var(--font);
+}
+
+.nav-btn:hover {
+  background: #f3f4f6;
+  color: #2d6a4f;
+  border-color: #2d6a4f;
+}
+
+.month-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+/* Heatmap Grid */
+.heatmap-labels {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.heatmap-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  min-width: 0;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.3);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 2;
+}
+
+.heatmap-cell.today {
+  border: 2px solid #e8a838;
+  box-shadow: 0 0 0 1px #e8a838;
+}
+
+.heatmap-cell.empty {
+  cursor: default;
+  background: transparent !important;
+}
+
+.heatmap-cell.empty:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Tooltip */
+.heatmap-cell .tooltip-text {
+  display: none;
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.heatmap-cell:hover .tooltip-text {
+  display: block;
+}
+
+/* Heatmap Legend */
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.legend-box {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+}
+
+/* Day Detail Panel */
+.day-detail-panel {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: #f8fafb;
+  border-radius: 10px;
+  border-left: 3px solid #2d6a4f;
+  display: none;
+  animation: fadeIn 0.2s ease;
+}
+
+.day-detail-panel.show {
+  display: block;
+}
+
+.day-detail-panel h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d6a4f;
+  margin-bottom: 8px;
+}
+
+.day-detail-panel .detail-item {
+  font-size: 13px;
+  color: #4b5563;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Old heatmap kept for backward compat */
 .heatmap {
   display: flex;
   gap: 4px;
@@ -1936,6 +2132,278 @@ a { text-decoration: none; color: var(--primary); }
   margin-top: 24px;
 }
 
+/* ===================== Scenario Challenge Dialogue ===================== */
+.scenario-challenge-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #fffcf9;
+  border-radius: 12px;
+  border: 1px solid #f0e6d3;
+}
+
+.scenario-vs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.scenario-vs .vs-player-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.scenario-vs .vs-divider {
+  font-size: 18px;
+  font-weight: 900;
+  color: #e74c3c;
+}
+
+.scenario-scene-info {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 16px;
+  text-align: center;
+  padding: 8px 16px;
+  background: #fffcf9;
+  border-radius: 8px;
+  border-left: 3px solid #e8a838;
+}
+
+/* Dialogue Conversation Area */
+.scenario-conversation {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 8px 4px;
+  scroll-behavior: smooth;
+}
+
+.scenario-msg-wrapper {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+  animation: msgSlideIn 0.3s ease;
+}
+
+@keyframes msgSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.scenario-msg-wrapper.role-A {
+  align-items: flex-start;
+}
+
+.scenario-msg-wrapper.role-B {
+  align-items: flex-end;
+}
+
+.scenario-msg-bubble {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  position: relative;
+}
+
+.scenario-msg-wrapper.role-A .scenario-msg-bubble {
+  background: #f0f2f5;
+  color: #1a1a2e;
+  border-bottom-left-radius: 4px;
+}
+
+.scenario-msg-wrapper.role-B .scenario-msg-bubble {
+  background: linear-gradient(135deg, #2d6a4f, #40916c);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.scenario-msg-speaker {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  opacity: 0.8;
+}
+
+.scenario-msg-wrapper.role-A .scenario-msg-speaker {
+  color: #6b7280;
+  padding-left: 16px;
+}
+
+.scenario-msg-wrapper.role-B .scenario-msg-speaker {
+  color: rgba(255,255,255,0.8);
+  padding-right: 16px;
+  text-align: right;
+}
+
+/* Tip for B's expected response */
+.scenario-msg-tip {
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+  margin-top: 2px;
+  padding: 0 16px;
+}
+
+/* Input Area for B's turn */
+.scenario-input-area {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background: #fffcf9;
+  border-radius: 12px;
+  border: 1px solid #f0e6d3;
+  align-items: center;
+}
+
+.scenario-input-area input {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-family: var(--font);
+  color: #1a1a2e;
+  background: #fff;
+}
+
+.scenario-input-area input:focus {
+  outline: none;
+  border-color: #2d6a4f;
+  box-shadow: 0 0 0 3px rgba(45,106,79,0.1);
+}
+
+.scenario-input-area input:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
+.scenario-input-area .btn-send {
+  padding: 10px 20px;
+  background: #2d6a4f;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+
+.scenario-input-area .btn-send:hover {
+  background: #1b4332;
+}
+
+.scenario-input-area .btn-send:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Score feedback after each turn */
+.scenario-turn-feedback {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 8px 0;
+  animation: fadeIn 0.3s ease;
+}
+
+.scenario-turn-feedback.good {
+  background: #d5f5e3;
+  color: #2d6a4f;
+  border-left: 3px solid #2d6a4f;
+}
+
+.scenario-turn-feedback.ok {
+  background: #fef3c7;
+  color: #92400e;
+  border-left: 3px solid #e8a838;
+}
+
+.scenario-turn-feedback.low {
+  background: #fee2e2;
+  color: #991b1b;
+  border-left: 3px solid #ef4444;
+}
+
+/* Waiting state */
+.scenario-waiting {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.scenario-waiting .spinner {
+  margin-bottom: 12px;
+}
+
+/* Score Overlay / Result */
+.scenario-result-overlay {
+  text-align: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #fffcf9, #fff);
+  border-radius: 16px;
+  border: 2px solid #b7e4c7;
+  margin-top: 8px;
+}
+
+.scenario-result-overlay .result-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
+.scenario-result-overlay .result-verdict {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+/* Start scenario challenge button in course */
+.btn-scenario-challenge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #2d6a4f, #40916c);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+
+.btn-scenario-challenge:hover {
+  background: linear-gradient(135deg, #1b4332, #2d6a4f);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45,106,79,0.3);
+}
+
+/* Responsive for scenario */
+@media (max-width: 640px) {
+  .scenario-msg-bubble {
+    max-width: 90%;
+    font-size: 14px;
+  }
+  .scenario-input-area {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .scenario-input-area .btn-send {
+    width: 100%;
+  }
+}
+
 /* ===================== Responsive ===================== */
 @media (max-width: 640px) {
   #navbar {
@@ -2012,3 +2480,307 @@ a { text-decoration: none; color: var(--primary); }
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .gap-8 { gap: 8px; }
 .gap-16 { gap: 16px; }
+
+/* ===================== Dashboard Partner Avatars ===================== */
+.partner-avatars-section {
+  margin-bottom: 24px;
+}
+
+.partner-avatars-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.partner-avatars-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.partner-avatars-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.partner-avatar-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.partner-avatar-item:hover {
+  transform: translateY(-2px);
+}
+
+.partner-avatar-item .avatar {
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+}
+
+.partner-avatar-name {
+  font-size: 11px;
+  color: var(--text-light);
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.online-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: #4CAF50;
+}
+
+.offline-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: #BDBDBD;
+}
+
+.partner-avatar-offline .avatar {
+  filter: grayscale(100%);
+  opacity: 0.5;
+}
+
+.partner-avatar-online .avatar {
+  box-shadow: 0 0 0 2px #4CAF50;
+}
+
+/* ===================== Challenge Notification Modal ===================== */
+.challenge-notify-modal .modal {
+  max-width: 420px;
+  text-align: center;
+  animation: slideDown 0.4s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.challenge-notify-icon {
+  font-size: 56px;
+  margin-bottom: 12px;
+  animation: bounce 0.6s ease infinite alternate;
+}
+
+@keyframes bounce {
+  from { transform: translateY(0); }
+  to { transform: translateY(-10px); }
+}
+
+.challenge-notify-modal h3 {
+  font-size: 22px;
+  margin-bottom: 8px;
+  color: var(--primary);
+}
+
+.challenge-notify-modal .challenger-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.challenge-notify-modal .course-info {
+  font-size: 15px;
+  color: var(--text);
+  margin: 8px 0;
+  padding: 8px 16px;
+  background: #FFF0E6;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.challenge-notify-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.challenge-notify-actions .btn {
+  min-width: 100px;
+}
+
+/* ===================== Calendar View ===================== */
+.calendar-view {
+  margin-top: 16px;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.calendar-nav-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.calendar-nav-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+}
+
+.calendar-nav-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light);
+  padding: 6px 0;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: default;
+  position: relative;
+  background: #F8F9FA;
+}
+
+.calendar-day.empty {
+  background: transparent;
+}
+
+.calendar-day.today {
+  border: 2px solid var(--primary);
+}
+
+.calendar-day.level-1 {
+  background: #C8E6C9;
+}
+
+.calendar-day.level-2 {
+  background: #81C784;
+}
+
+.calendar-day.level-3 {
+  background: #4CAF50;
+  color: white;
+}
+
+.calendar-day.level-4 {
+  background: #2E7D32;
+  color: white;
+}
+
+.calendar-day .day-num {
+  line-height: 1;
+}
+
+.calendar-day .day-dot {
+  position: absolute;
+  bottom: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.calendar-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.calendar-legend-item {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #F8F9FA;
+  border: 1px solid var(--border);
+}
+
+.calendar-legend-item.l1 { background: #C8E6C9; }
+.calendar-legend-item.l2 { background: #81C784; }
+.calendar-legend-item.l3 { background: #4CAF50; }
+.calendar-legend-item.l4 { background: #2E7D32; }
+
+/* ===================== Leaderboard Filter ===================== */
+.leaderboard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.leaderboard-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font);
+  color: var(--text-light);
+}
+
+.leaderboard-filter-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.leaderboard-filter-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}

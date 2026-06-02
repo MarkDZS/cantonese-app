@@ -8,6 +8,8 @@ const App = {
     try {
       this.currentUser = await API.getProfile();
       this.showApp();
+      // Start challenge invitation polling
+      this._startChallengePolling();
     } catch (e) {
       this.showLogin();
     }
@@ -15,6 +17,92 @@ const App = {
     // Handle hash routing
     window.addEventListener('hashchange', () => this.route());
     this.route();
+  },
+
+  // ===================== Challenge Invitation Polling =====================
+  _challengePollTimer: null,
+  _knownChallengeIds: new Set(),
+  _challengeModalShown: false,
+
+  _startChallengePolling() {
+    // Check invitations every 30 seconds
+    this._challengePollTimer = setInterval(() => this._checkNewChallenges(), 30000);
+    // Also check immediately
+    setTimeout(() => this._checkNewChallenges(), 2000);
+  },
+
+  async _checkNewChallenges() {
+    if (!this.currentUser || this._challengeModalShown) return;
+    try {
+      const invitations = await API.getChallengeInvitations();
+      if (!invitations || invitations.length === 0) return;
+
+      // Check for new (unseen) challenges
+      const newOnes = invitations.filter(c => !this._knownChallengeIds.has(c.id));
+      if (newOnes.length === 0) return;
+
+      // Remember these challenge IDs
+      newOnes.forEach(c => this._knownChallengeIds.add(c.id));
+      
+      // Show modal for the first new challenge
+      this._showChallengeNotification(newOnes[0]);
+    } catch (e) {
+      // Silently ignore polling errors
+    }
+  },
+
+  _showChallengeNotification(challenge) {
+    this._challengeModalShown = true;
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay challenge-notify-modal';
+    modal.innerHTML = `
+      <div class="modal">
+        <div class="challenge-notify-icon">⚔️</div>
+        <h3>对战邀请！</h3>
+        <div class="challenger-info">
+          ${avatarHtml({ nickname: challenge.challenger_name, avatar_color: challenge.challenger_avatar || '#FF6B35' }, 'avatar-sm')}
+          <span style="font-weight:600;">${escapeHtml(challenge.challenger_name)}</span>
+        </div>
+        <p style="color:var(--text-light);margin-bottom:4px;">向你发起了一场对战</p>
+        <div class="course-info">
+          📚 ${escapeHtml(challenge.course_title)} (L${challenge.course_level})
+        </div>
+        <div class="challenge-notify-actions">
+          <button class="btn btn-success" id="challenge-accept-btn">⚔️ 应战</button>
+          <button class="btn btn-outline" id="challenge-wait-btn">⏳ 等一等</button>
+          <button class="btn btn-danger" id="challenge-reject-btn">❌ 拒绝</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Close modal handlers
+    const closeModal = () => {
+      modal.remove();
+      this._challengeModalShown = false;
+    };
+
+    // Accept challenge
+    modal.querySelector('#challenge-accept-btn').addEventListener('click', () => {
+      closeModal();
+      location.hash = `#/challenge/${challenge.id}`;
+    });
+
+    // Wait (dismiss for now, will check again later)
+    modal.querySelector('#challenge-wait-btn').addEventListener('click', () => {
+      closeModal();
+      showToast('对战邀请已暂存，可在对战中心查看');
+    });
+
+    // Reject challenge
+    modal.querySelector('#challenge-reject-btn').addEventListener('click', () => {
+      closeModal();
+      showToast('已拒绝对战邀请');
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
   },
 
   async route() {
@@ -50,6 +138,9 @@ const App = {
         } else if (route.startsWith('/challenge/')) {
           const challengeId = route.split('/')[2];
           await this.renderChallenge(challengeId);
+        } else if (route.startsWith('/scenario-challenge/')) {
+          const challengeId = route.split('/')[2];
+          await this.renderScenarioChallenge(challengeId);
         } else {
           this.renderDashboard();
         }
@@ -234,12 +325,44 @@ const App = {
     showLoading(main);
 
     try {
-      const [profile, stats, feed, recommended] = await Promise.all([
+      const [profile, stats, feed, recommended, partnersData] = await Promise.all([
         API.getProfile(),
         API.getStats(),
         API.getFeed(),
-        API.getRecommendedCourses()
+        API.getRecommendedCourses(),
+        API.getPartners()
       ]);
+
+      const acceptedPartners = partnersData.filter(p => p.status === 'accepted');
+      const now = new Date();
+      const ONLINE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+      // Build partner avatars with online/offline status
+      let partnersHtml = '';
+      if (acceptedPartners.length > 0) {
+        const avatars = acceptedPartners.map(p => {
+          let lastActive = null;
+          try { lastActive = new Date(p.last_active + 'Z'); } catch(e) {}
+          const isOnline = lastActive && (now - lastActive) < ONLINE_THRESHOLD;
+          const onlineClass = isOnline ? 'partner-avatar-online' : 'partner-avatar-offline';
+          const dotClass = isOnline ? 'online-dot' : 'offline-dot';
+          const tooltip = isOnline ? '在线' : '离线';
+          return `
+            <div class="partner-avatar-item ${onlineClass}" onclick="location.hash='#/partner/${p.id}'" title="${escapeHtml(p.nickname)} - ${tooltip}">
+              <div class="avatar" style="background:${p.avatar_color || '#FF6B35'}">${(p.nickname || '?')[0]}</div>
+              <span class="${dotClass}"></span>
+              <span class="partner-avatar-name">${escapeHtml(p.nickname)}</span>
+            </div>`;
+        }).join('');
+        partnersHtml = `
+          <div class="card mb-16">
+            <div class="partner-avatars-header">
+              <span class="partner-avatars-title">🤝 学习搭子</span>
+              <a href="#/partners" style="font-size:13px;">全部搭子 →</a>
+            </div>
+            <div class="partner-avatars-row">${avatars}</div>
+          </div>`;
+      }
 
       const completedPercent = stats.coursesTotal > 0 
         ? Math.round((stats.coursesCompleted / stats.coursesTotal) * 100) 
@@ -279,16 +402,20 @@ const App = {
           </div>
         </div>
 
+        ${partnersHtml}
+
         <div class="card mb-16">
           <div class="card-header">
             <span class="card-title">🎯 推荐课程</span>
             <a href="#/courses" style="font-size:13px;">查看全部 →</a>
           </div>
-          ${recommended.courses.length === 0 
-            ? `<div class="empty-state"><p>暂无推荐课程，去评估一下你的水平吧！</p>
-               <a href="#/assess" class="btn btn-primary mt-16">开始评估</a></div>`
-            : recommended.courses.slice(0, 4).map(c => courseCardHtml(c)).join('')
-          }
+          <div id="recommended-courses">
+            ${recommended.courses.length === 0 
+              ? `<div class="empty-state"><p>暂无推荐课程，去评估一下你的水平吧！</p>
+                 <a href="#/assess" class="btn btn-primary mt-16">开始评估</a></div>`
+              : recommended.courses.slice(0, 4).map(c => courseCardHtml(c)).join('')
+            }
+          </div>
         </div>
 
         <div class="card">
@@ -310,6 +437,14 @@ const App = {
           <a href="#/assess" class="btn btn-outline">📊 重新评估</a>
         </div>
       `;
+
+      // Attach click events for recommended course cards in dashboard
+      main.querySelectorAll('#recommended-courses .course-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const courseId = card.dataset.courseId;
+          location.hash = `#/course/${courseId}`;
+        });
+      });
     } catch (e) {
       showError(main, e.message);
     }
@@ -605,6 +740,14 @@ const App = {
 
       html += `</div>`;
     });
+
+    // Add scenario challenge button
+    html += `
+      <div class="text-center mt-16 mb-16">
+        <button class="btn-scenario-challenge" onclick="App._startScenarioChallenge(${this._courseId})">
+          🎭 用这段对话发起情景对战
+        </button>
+      </div>`;
 
     container.innerHTML = html;
   },
@@ -1945,6 +2088,13 @@ const App = {
 
     try {
       const challenge = await API.getChallenge(challengeId);
+
+      // Redirect scenario challenges to their own renderer
+      if (challenge.challenge_mode === 'scenario') {
+        location.hash = `#/scenario-challenge/${challengeId}`;
+        return;
+      }
+
       const questions = await API.getPracticeQuestions(challenge.course_id);
       const userId = App.currentUser.id;
 
@@ -2126,6 +2276,315 @@ const App = {
     }
   },
 
+  // ===================== SCENARIO CHALLENGE (Dialogue Battle) =====================
+  _scenarioChallenge: null,
+  _scenarioTurns: [],
+  _scenarioSubmissions: {},
+  _scenarioResults: {},
+  _scenarioCurrentTurn: 0,
+  _scenarioCompleted: false,
+
+  async renderScenarioChallenge(challengeId) {
+    const main = document.getElementById('main-content');
+    showLoading(main);
+
+    try {
+      const challenge = await API.getScenarioChallenge(challengeId);
+      this._scenarioChallenge = challenge;
+      this._scenarioTurns = challenge.turns || [];
+      this._scenarioSubmissions = challenge.submittedTurns || {};
+      this._scenarioResults = {};
+      this._scenarioCompleted = challenge.status === 'completed';
+      this._scenarioCurrentTurn = this._scenarioSubmissions ? Object.keys(this._scenarioSubmissions).length : 0;
+
+      const userId = App.currentUser.id;
+
+      if (!challenge.isParticipant) {
+        main.innerHTML = '<div class="empty-state"><p>你不在这个对战中</p></div>';
+        return;
+      }
+
+      if (challenge.status === 'pending') {
+        this._renderScenarioPending(challenge, main);
+      } else if (challenge.status === 'active') {
+        this._renderScenarioActive(challenge, main);
+      } else if (challenge.status === 'completed') {
+        this._renderScenarioResult(challenge, main);
+      }
+    } catch (e) {
+      showError(main, e.message);
+    }
+  },
+
+  _renderScenarioPending(challenge, main) {
+    const isChallenger = challenge.isChallenger;
+    main.innerHTML = `
+      <div class="page-title">🎭 情景对话对战</div>
+      <div class="card text-center">
+        <h3>${escapeHtml(challenge.course_title)}</h3>
+        <p style="color:var(--text-light);">L${challenge.course_level}</p>
+        
+        <div class="vs-display">
+          <div class="vs-player">
+            ${avatarHtml({ nickname: challenge.challenger_name, avatar_color: challenge.challenger_avatar }, 'avatar-lg')}
+            <h3>${escapeHtml(challenge.challenger_name)}</h3>
+            <p style="font-size:13px;color:var(--text-muted);">发起人</p>
+          </div>
+          <div class="vs-vs">VS</div>
+          <div class="vs-player">
+            <div class="avatar avatar-lg" style="background:var(--text-muted);">?</div>
+            <h3>等待加入</h3>
+          </div>
+        </div>
+
+        <div class="challenge-code">
+          <p style="font-size:13px;color:var(--text-light);margin-bottom:8px;">对战码</p>
+          <div class="code">${challenge.challenge_code || challenge.id}</div>
+        </div>
+
+        ${!isChallenger ? `
+          <button class="btn btn-primary btn-lg mt-16" onclick="App._joinScenarioChallenge(${challenge.id})">加入对话对战</button>
+        ` : `
+          <p style="color:var(--text-muted);">等待搭子加入...</p>
+          <button class="btn btn-outline mt-8" onclick="location.reload()">刷新</button>
+        `}
+      </div>
+    `;
+  },
+
+  async _joinScenarioChallenge(challengeId) {
+    try {
+      await API.joinChallenge(challengeId);
+      location.reload();
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  async _startScenarioChallenge(courseId) {
+    try {
+      const result = await API.createScenarioChallenge(courseId);
+      showToast(`情景对战已发起！对战码: ${result.challengeCode}`);
+      location.hash = `#/scenario-challenge/${result.challengeId}`;
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  },
+
+  _renderScenarioActive(challenge, main) {
+    // Determine if current user has submitted all turns
+    const submitted = this._scenarioSubmissions;
+    const mySubmittedCount = submitted ? Object.keys(submitted).length : 0;
+    const totalBTurns = this._scenarioTurns.filter(t => t.role === 'B').length;
+
+    main.innerHTML = `
+      <div class="page-title">🎭 情景对话对战</div>
+      <div class="scenario-scene-info">
+        📍 ${escapeHtml(challenge.course_title)}（L${challenge.course_level}）
+      </div>
+      <div class="scenario-challenge-header">
+        <div class="scenario-vs">
+          <span class="vs-player-name">${escapeHtml(challenge.challenger_name)}</span>
+          <span class="vs-divider">⚔️</span>
+          <span class="vs-player-name">${escapeHtml(challenge.opponent_name || '?')}</span>
+        </div>
+      </div>
+      <div class="scenario-conversation" id="scenario-conversation">
+        ${this._renderScenarioConversation()}
+      </div>
+      <div id="scenario-input-section"></div>
+    `;
+
+    // Render input area if user hasn't completed
+    this._renderScenarioInputSection(totalBTurns);
+
+    // Scroll to bottom of conversation
+    setTimeout(() => {
+      const conv = document.getElementById('scenario-conversation');
+      if (conv) conv.scrollTop = conv.scrollHeight;
+    }, 100);
+  },
+
+  _renderScenarioConversation() {
+    const allTurns = this._scenarioTurns;
+    const submitted = this._scenarioSubmissions || {};
+    const results = this._scenarioResults || {};
+    let html = '';
+
+    let bIndex = 0;
+    for (let i = 0; i < allTurns.length; i++) {
+      const turn = allTurns[i];
+      if (turn.role === 'A') {
+        html += `
+          <div class="scenario-msg-wrapper role-A">
+            <div class="scenario-msg-speaker">A说：</div>
+            <div class="scenario-msg-bubble">${escapeHtml(turn.text)}</div>
+          </div>`;
+      } else {
+        // B turn - show if submitted or if it's the current turn being answered
+        if (submitted[bIndex] !== undefined) {
+          const userAnswer = submitted[bIndex];
+          const result = results[bIndex];
+          html += `
+            <div class="scenario-msg-wrapper role-B">
+              <div class="scenario-msg-speaker">你说：</div>
+              <div class="scenario-msg-bubble">${escapeHtml(userAnswer)}</div>
+            </div>
+            ${result ? `<div class="scenario-turn-feedback ${result.score >= 80 ? 'good' : result.score >= 50 ? 'ok' : 'low'}">
+              ${result.score >= 80 ? '✅ 很好！' : result.score >= 50 ? '⚠️ 还可以进步' : '❌ 需要加油'} 原文：${escapeHtml(result.expected)}
+            </div>` : ''}`;
+        }
+        bIndex++;
+      }
+    }
+    return html;
+  },
+
+  _renderScenarioInputSection(totalBTurns) {
+    const section = document.getElementById('scenario-input-section');
+    if (!section) return;
+
+    const submitted = this._scenarioSubmissions || {};
+    const mySubmittedCount = Object.keys(submitted).length;
+
+    if (this._scenarioCompleted) {
+      section.innerHTML = '';
+      return;
+    }
+
+    if (mySubmittedCount >= totalBTurns) {
+      // User has submitted all, waiting for opponent
+      section.innerHTML = `
+        <div class="scenario-waiting">
+          <div class="spinner"></div>
+          <p style="color:var(--text-muted);">你已完成所有对话，等待对手完成...</p>
+          <button class="btn btn-outline mt-8" onclick="location.reload()">刷新状态</button>
+        </div>`;
+      return;
+    }
+
+    // Show input for next B turn
+    // Build the context: show all turns up to this B turn (including the A line before it)
+    const allTurns = this._scenarioTurns;
+    let nextBIndex = mySubmittedCount;
+
+    // Find the A turn before this B turn
+    let bCount = 0;
+    let prevAText = '';
+    for (let i = 0; i < allTurns.length; i++) {
+      if (allTurns[i].role === 'B') {
+        if (bCount === nextBIndex) break;
+        bCount++;
+      } else {
+        prevAText = allTurns[i].text;
+      }
+    }
+
+    section.innerHTML = `
+      ${prevAText ? `<div class="scenario-msg-tip">💡 请回应上面A的对话（说粤语）："${escapeHtml(prevAText)}"</div>` : ''}
+      <div class="scenario-input-area">
+        <input type="text" id="scenario-turn-input" placeholder="请输入你的粤语回应..." 
+               onkeydown="if(event.key==='Enter')App._submitScenarioTurn()" autofocus>
+        <button class="btn-send" id="scenario-send-btn" onclick="App._submitScenarioTurn()">发送 💬</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:6px;">
+        进度：${mySubmittedCount + 1} / ${totalBTurns} 句对话
+      </div>
+    `;
+
+    setTimeout(() => {
+      const input = document.getElementById('scenario-turn-input');
+      if (input) input.focus();
+    }, 200);
+  },
+
+  async _submitScenarioTurn() {
+    const input = document.getElementById('scenario-turn-input');
+    const btn = document.getElementById('scenario-send-btn');
+    if (!input || !btn) return;
+
+    const answer = input.value.trim();
+    if (!answer) {
+      showToast('请输入你的回应', 'error');
+      return;
+    }
+
+    const challengeId = this._scenarioChallenge.id;
+    const turnIndex = Object.keys(this._scenarioSubmissions || {}).length;
+
+    input.disabled = true;
+    btn.disabled = true;
+    btn.textContent = '发送中...';
+
+    try {
+      const result = await API.submitScenarioTurn(challengeId, turnIndex, answer);
+
+      // Store result and submission
+      if (!this._scenarioSubmissions) this._scenarioSubmissions = {};
+      this._scenarioSubmissions[turnIndex] = answer;
+      if (!this._scenarioResults) this._scenarioResults = {};
+      this._scenarioResults[turnIndex] = { score: result.score, expected: result.expected };
+
+      // Re-render active view
+      const main = document.getElementById('main-content');
+      this._renderScenarioActive(this._scenarioChallenge, main);
+
+    } catch (e) {
+      input.disabled = false;
+      btn.disabled = false;
+      btn.textContent = '发送 💬';
+      showToast(e.message || '发送失败', 'error');
+    }
+  },
+
+  _renderScenarioResult(challenge, main) {
+    const userId = App.currentUser.id;
+    const isWinner = challenge.winner_id === userId;
+    const isDraw = !challenge.winner_id;
+
+    main.innerHTML = `
+      <div class="page-title">🎭 对话对战结果</div>
+      <div class="scenario-scene-info">
+        📍 ${escapeHtml(challenge.course_title)}（L${challenge.course_level}）
+      </div>
+      
+      <div class="card">
+        <div class="vs-display">
+          <div class="vs-player">
+            ${avatarHtml({ nickname: challenge.challenger_name, avatar_color: challenge.challenger_avatar }, 'avatar-lg')}
+            <h3>${escapeHtml(challenge.challenger_name)}</h3>
+            <div class="score">${challenge.challenger_score}%</div>
+            <div class="vs-winner ${challenge.winner_id === challenge.challenger_id ? 'win' : challenge.winner_id ? 'lose' : 'draw'}">
+              ${challenge.winner_id === challenge.challenger_id ? '🏆 胜利' : challenge.winner_id ? '再接再厉' : '🤝'}
+            </div>
+          </div>
+          <div class="vs-vs">VS</div>
+          <div class="vs-player">
+            ${avatarHtml({ nickname: challenge.opponent_name || '?', avatar_color: challenge.opponent_avatar || '#BDC3C7' }, 'avatar-lg')}
+            <h3>${escapeHtml(challenge.opponent_name || '?')}</h3>
+            <div class="score">${challenge.opponent_score}%</div>
+            <div class="vs-winner ${challenge.winner_id === challenge.opponent_id ? 'win' : challenge.winner_id ? 'lose' : 'draw'}">
+              ${challenge.winner_id === challenge.opponent_id ? '🏆 胜利' : challenge.winner_id ? '再接再厉' : '🤝 平局'}
+            </div>
+          </div>
+        </div>
+        <div class="scenario-result-overlay mt-16">
+          <div class="result-icon">${isWinner ? '🎉' : isDraw ? '🤝' : '💪'}</div>
+          <div class="result-verdict" style="color:${isWinner ? 'var(--success)' : isDraw ? 'var(--secondary)' : 'var(--text-light)'};">
+            ${isWinner ? '恭喜你赢了！对话水平很棒！' : isDraw ? '平局！双方都很厉害！' : '再接再厉！多练习粤语对话吧！'}
+          </div>
+        </div>
+        <div class="text-center mt-16">
+          <button class="btn btn-primary" onclick="location.hash='#/courses'">继续学习</button>
+          <button class="btn btn-outline ml-8" onclick="location.hash='#/battles'">查看更多对战</button>
+        </div>
+      </div>
+    `;
+
+    if (isWinner) showAda(AdaMessages.challenge_win);
+    else if (!isDraw) showAda(AdaMessages.challenge_lose);
+  },
+
   // ===================== BATTLES CENTER =====================
   async renderBattles() {
     const main = document.getElementById('main-content');
@@ -2231,20 +2690,24 @@ const App = {
             : active.map(c => {
               const isChallenger = c.challenger_id === App.currentUser.id;
               const hasSubmitted = isChallenger ? c.challenger_score > 0 : c.opponent_score > 0;
+              const isScenario = c.challenge_mode === 'scenario';
+              const challengeUrl = isScenario ? `#/scenario-challenge/${c.id}` : `#/challenge/${c.id}`;
+              const actionLabel = isScenario ? '开始对话' : '开始答题';
+              const statusLabel = isScenario ? '🎭 情景对战' : (hasSubmitted ? '✅ 已提交 · 等待对方完成...' : '⏳ 请完成答题');
               return `
                 <div class="battle-card ${hasSubmitted ? 'submitted' : ''}">
                   <div class="battle-card-info">
-                    <div style="font-weight:600;">${escapeHtml(c.course_title)} (L${c.course_level})</div>
+                    <div style="font-weight:600;">${isScenario ? '🎭 ' : ''}${escapeHtml(c.course_title)} (L${c.course_level})</div>
                     <div style="font-size:13px;color:var(--text-light);">
                       ${isChallenger ? `对手: ${escapeHtml(c.opponent_name || '?')}` : `发起人: ${escapeHtml(c.challenger_name)}`}
                     </div>
                     <div style="font-size:12px;color:var(--text-muted);">
-                      ${hasSubmitted ? '✅ 已提交 · 等待对方完成...' : '⏳ 请完成答题'}
+                      ${statusLabel}
                     </div>
                   </div>
                   ${!hasSubmitted 
-                    ? `<button class="btn btn-primary btn-sm" onclick="location.hash='#/challenge/${c.id}'">开始答题</button>`
-                    : `<button class="btn btn-outline btn-sm" onclick="location.hash='#/challenge/${c.id}'">查看状态</button>`
+                    ? `<button class="btn btn-primary btn-sm" onclick="location.hash='${challengeUrl}'">${actionLabel}</button>`
+                    : `<button class="btn btn-outline btn-sm" onclick="location.hash='${challengeUrl}'">查看状态</button>`
                   }
                 </div>
               `;
@@ -2259,14 +2722,15 @@ const App = {
             : completed.map(c => {
               const isWinner = c.winner_id === App.currentUser.id;
               const isDraw = !c.winner_id;
+              const isScenario = c.challenge_mode === 'scenario';
               return `
                 <div class="battle-card ${isWinner ? 'win' : isDraw ? 'draw' : 'lose'}">
                   <div class="battle-card-info">
-                    <div style="font-weight:600;">${escapeHtml(c.course_title)} (L${c.course_level})</div>
+                    <div style="font-weight:600;">${isScenario ? '🎭 ' : ''}${escapeHtml(c.course_title)} (L${c.course_level})</div>
                     <div style="font-size:13px;color:var(--text-light);">
                       ${escapeHtml(c.challenger_name)} ${c.challenger_score}% vs ${escapeHtml(c.opponent_name || '?')} ${c.opponent_score}%
                     </div>
-                    <div style="font-size:12px;color:var(--text-muted);">${timeAgo(c.created_at)}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">${isScenario ? '情景对话对战 · ' : ''}${timeAgo(c.created_at)}</div>
                   </div>
                   <span style="font-size:16px;">
                     ${isWinner ? '🏆 胜利' : isDraw ? '🤝 平局' : '💪 再接再厉'}
@@ -2356,46 +2820,108 @@ const App = {
     showLoading(main);
 
     try {
-      const [global, weekly] = await Promise.all([
+      const [global, weekly, partnersData] = await Promise.all([
         API.getLeaderboard(),
-        API.getWeeklyLeaderboard()
+        API.getWeeklyLeaderboard(),
+        API.getPartners()
       ]);
 
-      main.innerHTML = `
-        <div class="page-title">🏆 排行榜</div>
-        
-        <div class="tabs">
-          <button class="tab active" onclick="App.switchLeaderboardTab('global', this)">总积分榜</button>
-          <button class="tab" onclick="App.switchLeaderboardTab('weekly', this)">本周积分榜</button>
-        </div>
+      // Store data for filtering
+      this._lbGlobal = global;
+      this._lbWeekly = weekly;
+      this._lbPartnerIds = new Set(
+        (partnersData || []).filter(p => p.status === 'accepted').map(p => p.id)
+      );
+      this._lbPartnerOnly = false;
+      this._lbActiveTab = 'global';
 
-        <div id="lb-global" class="card">
-          ${global.length === 0
-            ? '<div class="empty-state"><p>暂无数据</p></div>'
-            : global.map((u, i) => leaderboardItemHtml(u, i, 'score')).join('')
-          }
-        </div>
-
-        <div id="lb-weekly" class="card" style="display:none;">
-          ${weekly.length === 0
-            ? '<div class="empty-state"><p>暂无本周数据</p></div>'
-            : weekly.map((u, i) => leaderboardItemHtml(u, i, 'weekly_score')).join('')
-          }
-        </div>
-      `;
+      main.innerHTML = this._buildLeaderboardHtml('global');
     } catch (e) {
       showError(main, e.message);
     }
   },
 
+  _buildLeaderboardHtml(tab) {
+    const partnerOnly = this._lbPartnerOnly;
+    const partnerIds = this._lbPartnerIds;
+    const data = tab === 'global' ? this._lbGlobal : this._lbWeekly;
+    const scoreField = tab === 'global' ? 'score' : 'weekly_score';
+
+    // Filter data if partner-only mode
+    const filtered = partnerOnly
+      ? data.filter(u => partnerIds.has(u.id) || u.id === (this.currentUser ? this.currentUser.id : null))
+      : data;
+
+    const tabActive = (t) => t === tab ? ' active' : '';
+    const filterActive = partnerOnly ? ' active' : '';
+    const filterText = partnerOnly ? '👥 只显示搭子 ✓' : '👥 只显示搭子';
+
+    return `
+      <div class="page-title">🏆 排行榜</div>
+      
+      <div class="tabs">
+        <button class="tab${tabActive('global')}" onclick="App.switchLeaderboardTab('global', this)">总积分榜</button>
+        <button class="tab${tabActive('weekly')}" onclick="App.switchLeaderboardTab('weekly', this)">本周积分榜</button>
+      </div>
+
+      <div class="leaderboard-actions">
+        <button class="leaderboard-filter-btn${filterActive}" id="lb-filter-btn" onclick="App.togglePartnerFilter()">
+          ${filterText}
+        </button>
+      </div>
+
+      <div id="lb-global" class="card"${tab === 'weekly' ? ' style="display:none;"' : ''}>
+        ${tab === 'global' ? this._renderLeaderboardList(filtered, scoreField) : ''}
+      </div>
+
+      <div id="lb-weekly" class="card"${tab === 'global' ? ' style="display:none;"' : ''}>
+        ${tab === 'weekly' ? this._renderLeaderboardList(filtered, scoreField) : ''}
+      </div>
+    `;
+  },
+
+  _renderLeaderboardList(data, scoreField) {
+    const partnerIds = this._lbPartnerIds;
+    const currentId = this.currentUser ? this.currentUser.id : null;
+    return data.length === 0
+      ? '<div class="empty-state"><p>暂无数据</p></div>'
+      : data.map((u, i) => {
+          const isPartner = partnerIds.has(u.id) || u.id === currentId;
+          return `
+            <div class="leaderboard-item" style="display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--border);">
+              <div class="rank" style="font-weight:700;font-size:18px;width:32px;text-align:center;">${i < 3 ? ['🥇','🥈','🥉'][i] : `#${i+1}`}</div>
+              <div class="avatar" style="background:${u.avatar_color || '#FF6B35'};flex-shrink:0;">${(u.nickname || '?')[0]}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:15px;display:flex;align-items:center;gap:6px;">
+                  ${escapeHtml(u.nickname)}
+                  ${isPartner ? '<span style="font-size:11px;background:#FFF0E6;color:#FF6B35;padding:1px 6px;border-radius:10px;">搭子</span>' : ''}
+                </div>
+                <div style="font-size:12px;color:var(--text-light);">${getLevelLabel(u.level)} L${u.level} · ${u.courses_completed || u.weekly_courses || 0}课</div>
+              </div>
+              <div style="font-weight:700;font-size:18px;color:var(--primary);">${u[scoreField] || 0}</div>
+            </div>`;
+        }).join('');
+  },
+
+  togglePartnerFilter() {
+    this._lbPartnerOnly = !this._lbPartnerOnly;
+    const tab = this._lbActiveTab || 'global';
+    const main = document.getElementById('main-content');
+    main.innerHTML = this._buildLeaderboardHtml(tab);
+  },
+
   switchLeaderboardTab(tab, el) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
-    document.getElementById('lb-global').style.display = tab === 'global' ? 'block' : 'none';
-    document.getElementById('lb-weekly').style.display = tab === 'weekly' ? 'block' : 'none';
+    this._lbActiveTab = tab;
+    const main = document.getElementById('main-content');
+    main.innerHTML = this._buildLeaderboardHtml(tab);
   },
 
   // ===================== PROFILE =====================
+  _calendarYear: null,
+  _calendarMonth: null,
+  _activityData: null,
+  _selectedDay: null,
+
   async renderProfile() {
     const main = document.getElementById('main-content');
     showLoading(main);
@@ -2406,21 +2932,9 @@ const App = {
         API.getStats()
       ]);
 
-      // Build activity heatmap (last 30 days)
-      const activityMap = {};
-      (stats.activity || []).forEach(a => {
-        activityMap[a.date] = a.count;
-      });
-
-      let heatmapHtml = '';
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        const count = activityMap[dateStr] || 0;
-        const level = count >= 4 ? 'level-4' : count >= 3 ? 'level-3' : count >= 2 ? 'level-2' : count >= 1 ? 'level-1' : '';
-        heatmapHtml += `<div class="heatmap-day ${level}" title="${dateStr}: ${count} 课"></div>`;
-      }
+      const now = new Date();
+      this._calendarYear = now.getFullYear();
+      this._calendarMonth = now.getMonth() + 1; // 1-indexed for API
 
       main.innerHTML = `
         <div class="profile-header">
@@ -2449,15 +2963,18 @@ const App = {
           </div>
         </div>
 
-        <div class="card mb-16">
-          <h3 style="margin-bottom:12px;">📅 学习活跃度（近30天）</h3>
-          <div class="heatmap">${heatmapHtml}</div>
-          <div style="display:flex;align-items:center;gap:4px;margin-top:8px;font-size:11px;color:var(--text-muted);">
-            少 <span class="heatmap-day"></span><span class="heatmap-day level-1"></span><span class="heatmap-day level-2"></span><span class="heatmap-day level-3"></span><span class="heatmap-day level-4"></span> 多
+        <div class="activity-card">
+          <div class="activity-header">
+            <div class="activity-title">
+              <span>📊</span>
+              <span>学习活跃度</span>
+            </div>
+            ${stats.totalScore ? `<div class="activity-stats" id="activity-stats-summary">加载中...</div>` : ''}
           </div>
+          <div id="heatmap-container">加载中...</div>
         </div>
 
-        <div class="card mb-16">
+        <div class="card mb-16" style="margin-top:16px;">
           <h3 style="margin-bottom:16px;">📚 最近完成的课程</h3>
           ${(stats.recentCourses || []).length === 0
             ? '<div class="empty-state"><p>还没有完成任何课程</p></div>'
@@ -2482,6 +2999,9 @@ const App = {
         </div>
       `;
 
+      // Load activity data for heatmap
+      this._loadHeatmap();
+
       // Load assessment history
       try {
         const history = await API.getAssessmentHistory();
@@ -2504,7 +3024,147 @@ const App = {
     } catch (e) {
       showError(main, e.message);
     }
-  }
+  },
+
+  async _loadHeatmap() {
+    try {
+      this._activityData = await API.getActivity(this._calendarYear, this._calendarMonth);
+      this._renderHeatmap();
+    } catch (e) {
+      const container = document.getElementById('heatmap-container');
+      if (container) container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">活跃度数据加载失败</p>';
+    }
+  },
+
+  _renderHeatmap() {
+    const container = document.getElementById('heatmap-container');
+    if (!container || !this._activityData) return;
+
+    const data = this._activityData;
+    const year = data.year;
+    const month = data.month;
+    const today = new Date();
+    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+    // Update stats
+    const statsEl = document.getElementById('activity-stats-summary');
+    if (statsEl) {
+      statsEl.innerHTML = `本月完成 <strong>${data.total_courses}</strong> 课 · <span class="stat-streak">🔥 连续学习 <strong>${data.streak_days}</strong> 天</span>`;
+    }
+
+    // First day of month (0=Sun, 1=Mon, ...)
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    // Offset to start with Monday: Sun→6, Mon→0, Tue→1, ...
+    const offset = firstDay === 0 ? 6 : firstDay - 1;
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Build grid cells
+    let cellsHtml = '';
+    // Empty cells before month start
+    for (let i = 0; i < offset; i++) {
+      cellsHtml += '<div class="heatmap-cell empty"></div>';
+    }
+
+    const dailyMap = {};
+    (data.daily_activity || []).forEach(d => { dailyMap[d.day] = d; });
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const activity = dailyMap[day];
+      const count = activity ? activity.count : 0;
+      const minutes = activity ? activity.minutes : 0;
+
+      // Color mapping per prompt spec
+      let bgColor = '#ebedf0';
+      if (count === 1) bgColor = '#b7e4c7';
+      else if (count === 2) bgColor = '#52b788';
+      else if (count >= 3 && count <= 4) bgColor = '#2d6a4f';
+      else if (count >= 5) bgColor = '#1b4332';
+
+      const isToday = (year === today.getFullYear() && month === (today.getMonth() + 1) && day === today.getDate());
+      const todayClass = isToday ? ' today' : '';
+      const tooltipText = `${year}年${month}月${day}日 · ${count > 0 ? `学习了${count}课 · 用时${minutes}分钟` : '未学习'}`;
+
+      cellsHtml += `<div class="heatmap-cell${todayClass}" style="background:${bgColor};" data-day="${day}" data-year="${year}" data-month="${month}" title="${tooltipText}"><span class="tooltip-text">${tooltipText}</span></div>`;
+    }
+
+    container.innerHTML = `
+      <div class="month-navigator">
+        <button class="nav-btn" onclick="App._navigateCalendar(-1)">◀</button>
+        <span class="month-label">${year}年${monthNames[month - 1]}</span>
+        <button class="nav-btn" onclick="App._navigateCalendar(1)">▶</button>
+      </div>
+      <div class="heatmap-labels">
+        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+      </div>
+      <div class="heatmap-grid" id="heatmapGrid">
+        ${cellsHtml}
+      </div>
+      <div class="heatmap-legend">
+        <span>少</span>
+        <span class="legend-box" style="background:#ebedf0"></span>
+        <span class="legend-box" style="background:#b7e4c7"></span>
+        <span class="legend-box" style="background:#52b788"></span>
+        <span class="legend-box" style="background:#2d6a4f"></span>
+        <span class="legend-box" style="background:#1b4332"></span>
+        <span>多</span>
+      </div>
+      <div class="day-detail-panel" id="dayDetailPanel">
+        <div id="dayDetailContent"></div>
+      </div>
+    `;
+
+    // Attach click handlers to cells
+    document.querySelectorAll('#heatmapGrid .heatmap-cell:not(.empty)').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const day = parseInt(cell.dataset.day);
+        const y = parseInt(cell.dataset.year);
+        const m = parseInt(cell.dataset.month);
+        this._showDayDetail(y, m, day);
+      });
+    });
+  },
+
+  async _navigateCalendar(delta) {
+    this._calendarMonth += delta;
+    if (this._calendarMonth < 1) { this._calendarMonth = 12; this._calendarYear--; }
+    if (this._calendarMonth > 12) { this._calendarMonth = 1; this._calendarYear++; }
+    const container = document.getElementById('heatmap-container');
+    if (container) container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">加载中...</div>';
+    await this._loadHeatmap();
+  },
+
+  _showDayDetail(year, month, day) {
+    const panel = document.getElementById('dayDetailPanel');
+    const content = document.getElementById('dayDetailContent');
+    if (!panel || !content) return;
+
+    const data = this._activityData;
+    if (!data) return;
+
+    const activity = (data.daily_activity || []).find(d => d.day === day);
+    const count = activity ? activity.count : 0;
+    const minutes = activity ? activity.minutes : 0;
+    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const dateStr = `${year}年${monthNames[month - 1]}${day}日`;
+
+    if (count === 0) {
+      content.innerHTML = `<h4>📅 ${dateStr}</h4><div class="detail-item">😴 当天未学习，休息一下也很重要哦</div>`;
+    } else {
+      content.innerHTML = `
+        <h4>📅 ${dateStr}</h4>
+        <div class="detail-item">📚 完成了 <strong>${count}</strong> 门课程</div>
+        <div class="detail-item">⏱ 总学习时长约 <strong>${minutes}</strong> 分钟</div>
+      `;
+    }
+
+    if (this._selectedDay === `${year}-${month}-${day}` && panel.classList.contains('show')) {
+      panel.classList.remove('show');
+      this._selectedDay = null;
+    } else {
+      panel.classList.add('show');
+      this._selectedDay = `${year}-${month}-${day}`;
+    }
+  },
 };
 
 // ===================== Helper Functions =====================

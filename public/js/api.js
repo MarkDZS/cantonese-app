@@ -60,10 +60,18 @@ const API = {
   submitChallenge: (id, answers) => API.request('POST', `/api/challenges/${id}/submit`, { answers }),
   getMyChallenges: () => API.request('GET', '/api/challenges/my'),
   getChallengeInvitations: () => API.request('GET', '/api/challenges/invitations'),
+  // Scenario challenges
+  createScenarioChallenge: (courseId) => API.request('POST', '/api/challenges/scenario-create', { courseId }),
+  getScenarioChallenge: (id) => API.request('GET', `/api/challenges/scenario/${id}`),
+  submitScenarioTurn: (challengeId, turnIndex, answer) => 
+    API.request('POST', `/api/challenges/scenario/${challengeId}/submit`, { turnIndex, answer }),
 
   // Leaderboard
   getLeaderboard: () => API.request('GET', '/api/leaderboard'),
   getWeeklyLeaderboard: () => API.request('GET', '/api/leaderboard/weekly'),
+
+  // Activity
+  getActivity: (year, month) => API.request('GET', `/api/user/activity?year=${year}&month=${month}`),
 
   // Feed
   getFeed: () => API.request('GET', '/api/feed')

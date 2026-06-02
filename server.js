@@ -35,6 +35,15 @@ function seedDemoUsers() {
 }
 seedDemoUsers();
 
+// Migrations
+try {
+  const cols = db.prepare("PRAGMA table_info(challenges)").all().map(c => c.name);
+  if (!cols.includes('challenge_mode')) {
+    db.exec("ALTER TABLE challenges ADD COLUMN challenge_mode TEXT DEFAULT 'quiz'");
+    console.log('Migration: added challenge_mode column to challenges');
+  }
+} catch (e) { /* column may already exist */ }
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -1149,6 +1158,281 @@ app.get('/api/tts/info', (req, res) => {
     model: TtsService.TTS_MODEL,
     voice: TtsService.TTS_VOICE
   });
+});
+
+// ==================== ACTIVITY CALENDAR ====================
+app.get('/api/user/activity', requireAuth, (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
+
+    // Get daily activity for the month
+    const dailyActivity = db.prepare(`
+      SELECT CAST(strftime('%d', completed_at) AS INTEGER) as day,
+             COUNT(*) as count,
+             SUM(uc.score) as total_score
+      FROM user_courses uc
+      WHERE uc.user_id = ? 
+        AND uc.status = 'completed'
+        AND strftime('%Y', uc.completed_at) = ?
+        AND strftime('%m', uc.completed_at) = ?
+      GROUP BY strftime('%d', uc.completed_at)
+      ORDER BY day
+    `).all(userId, String(year), String(month).padStart(2, '0'));
+
+    // Total for the month
+    const monthStats = db.prepare(`
+      SELECT COUNT(*) as total_courses,
+             COUNT(DISTINCT date(completed_at)) as active_days,
+             COALESCE(SUM(score), 0) as total_score
+      FROM user_courses
+      WHERE user_id = ? AND status = 'completed'
+        AND strftime('%Y-%m', completed_at) = ?
+    `).get(userId, `${year}-${String(month).padStart(2, '0')}`);
+
+    // Streak days (from user profile)
+    const user = db.prepare('SELECT streak_days FROM users WHERE id = ?').get(userId);
+
+    // Build daily_activity array with all days
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const dailyMap = {};
+    dailyActivity.forEach(d => { dailyMap[d.day] = { count: d.count, minutes: Math.round((d.total_score || 0) / 10) }; });
+
+    const daily_activity = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      daily_activity.push({
+        day: d,
+        count: dailyMap[d] ? dailyMap[d].count : 0,
+        minutes: dailyMap[d] ? dailyMap[d].minutes : 0
+      });
+    }
+
+    res.json({
+      year,
+      month,
+      total_courses: monthStats.total_courses,
+      active_days: monthStats.active_days,
+      streak_days: user ? user.streak_days : 0,
+      daily_activity
+    });
+  } catch (err) {
+    console.error('Activity error:', err);
+    res.status(500).json({ error: '获取活跃度失败' });
+  }
+});
+
+// ==================== SCENARIO CHALLENGE ROUTES ====================
+app.get('/api/courses/:id/scenario', requireAuth, (req, res) => {
+  try {
+    const courseId = parseInt(req.params.id);
+    const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(courseId);
+    if (!course) return res.status(404).json({ error: '课程不存在' });
+
+    const content = JSON.parse(course.content_json);
+    const dialogueText = content.dialogue || '';
+
+    // Parse dialogue into turns: "A: text\nB: text\n..."
+    const turns = [];
+    const lines = dialogueText.split('\n').filter(l => l.trim());
+    for (const line of lines) {
+      const match = line.match(/^([AB]):\s*(.+)/);
+      if (match) {
+        turns.push({ role: match[1], text: match[2].trim() });
+      }
+    }
+
+    res.json({
+      course_id: course.id,
+      course_title: course.title,
+      course_level: course.level,
+      scenario: content.scenario || '',
+      turns,
+      turn_count: turns.length
+    });
+  } catch (err) {
+    console.error('Scenario error:', err);
+    res.status(500).json({ error: '获取情景失败' });
+  }
+});
+
+app.post('/api/challenges/scenario-create', requireAuth, (req, res) => {
+  try {
+    const { courseId } = req.body;
+    const userId = req.session.userId;
+    const challengeCode = uuidv4().substring(0, 6).toUpperCase();
+
+    const result = db.prepare(
+      "INSERT INTO challenges (course_id, challenger_id, status, challenge_mode, challenge_code) VALUES (?, ?, 'pending', 'scenario', ?)"
+    ).run(courseId, userId, challengeCode);
+
+    res.json({ challengeId: result.lastInsertRowid, challengeCode, mode: 'scenario' });
+  } catch (err) {
+    console.error('Create scenario challenge error:', err);
+    res.status(500).json({ error: '创建情景对战失败' });
+  }
+});
+
+// Get scenario challenge state
+app.get('/api/challenges/scenario/:id', requireAuth, (req, res) => {
+  try {
+    const challengeId = parseInt(req.params.id);
+    const userId = req.session.userId;
+
+    const challenge = db.prepare(`
+      SELECT c.*, co.title as course_title, co.level as course_level, co.content_json,
+             u1.nickname as challenger_name, u1.avatar_color as challenger_avatar,
+             u2.nickname as opponent_name, u2.avatar_color as opponent_avatar
+      FROM challenges c
+      JOIN courses co ON c.course_id = co.id
+      JOIN users u1 ON c.challenger_id = u1.id
+      LEFT JOIN users u2 ON c.opponent_id = u2.id
+      WHERE c.id = ? AND c.challenge_mode = 'scenario'
+    `).get(challengeId);
+
+    if (!challenge) return res.status(404).json({ error: '对战不存在' });
+
+    // Parse dialogue
+    const content = JSON.parse(challenge.content_json);
+    const dialogueText = content.dialogue || '';
+    const turns = [];
+    const lines = dialogueText.split('\n').filter(l => l.trim());
+    for (const line of lines) {
+      const match = line.match(/^([AB]):\s*(.+)/);
+      if (match) turns.push({ role: match[1], text: match[2].trim() });
+    }
+
+    // Get submitted turns for current user
+    const submissions = db.prepare(
+      'SELECT question_index, answer FROM challenge_answers WHERE challenge_id = ? AND user_id = ? ORDER BY question_index'
+    ).all(challengeId, userId);
+
+    const submittedTurns = {};
+    submissions.forEach(s => { submittedTurns[s.question_index] = s.answer; });
+
+    res.json({
+      ...challenge,
+      content_json: undefined,
+      turns,
+      submittedTurns,
+      isParticipant: challenge.challenger_id === userId || challenge.opponent_id === userId,
+      isChallenger: challenge.challenger_id === userId,
+      isOpponent: challenge.opponent_id === userId
+    });
+  } catch (err) {
+    console.error('Scenario challenge detail error:', err);
+    res.status(500).json({ error: '获取对战详情失败' });
+  }
+});
+
+// Submit a single dialogue turn
+app.post('/api/challenges/scenario/:id/submit', requireAuth, (req, res) => {
+  try {
+    const challengeId = parseInt(req.params.id);
+    const userId = req.session.userId;
+    const { turnIndex, answer } = req.body;
+
+    const challenge = db.prepare(`
+      SELECT c.*, co.content_json 
+      FROM challenges c JOIN courses co ON c.course_id = co.id 
+      WHERE c.id = ? AND c.challenge_mode = 'scenario' AND c.status = 'active'
+    `).get(challengeId);
+
+    if (!challenge) return res.status(404).json({ error: '对战不存在或已结束' });
+    if (challenge.challenger_id !== userId && challenge.opponent_id !== userId)
+      return res.status(403).json({ error: '你不是对战的参与者' });
+
+    // Parse dialogue to get expected answer
+    const content = JSON.parse(challenge.content_json);
+    const dialogueText = content.dialogue || '';
+    const lines = dialogueText.split('\n').filter(l => l.trim());
+    const bTurns = [];
+    for (const line of lines) {
+      const match = line.match(/^B:\s*(.+)/);
+      if (match) bTurns.push(match[1].trim());
+    }
+
+    // Map turnIndex to B turn
+    const bIndex = turnIndex;
+    const expected = bTurns[bIndex] || '';
+
+    // Score: simple string similarity
+    const userAnswer = (answer || '').trim();
+    const expectedLower = expected.toLowerCase();
+    const userLower = userAnswer.toLowerCase();
+
+    let score = 0;
+    if (userLower === expectedLower) {
+      score = 100;
+    } else if (userLower.length > 0) {
+      // Check word overlap
+      const expectedWords = expectedLower.split(/\s+/);
+      const userWords = userLower.split(/\s+/);
+      let matches = 0;
+      for (const ew of expectedWords) {
+        if (userWords.some(uw => uw.includes(ew) || ew.includes(uw))) matches++;
+      }
+      score = expectedWords.length > 0 ? Math.round((matches / expectedWords.length) * 80) : 30;
+      if (userLower.length >= 3) score = Math.max(score, 30);
+    }
+
+    // Save answer
+    db.prepare(
+      'INSERT OR REPLACE INTO challenge_answers (challenge_id, user_id, question_index, answer, is_correct) VALUES (?, ?, ?, ?, ?)'
+    ).run(challengeId, userId, turnIndex, userAnswer, score >= 60 ? 1 : 0);
+
+    // Update cumulative score
+    const allAnswers = db.prepare(
+      'SELECT is_correct FROM challenge_answers WHERE challenge_id = ? AND user_id = ?'
+    ).all(challengeId, userId);
+    const totalCorrect = allAnswers.filter(a => a.is_correct).length;
+    const totalTurns = bTurns.length;
+    const overallScore = totalTurns > 0 ? Math.round((totalCorrect / totalTurns) * 100) : 0;
+
+    if (challenge.challenger_id === userId) {
+      db.prepare('UPDATE challenges SET challenger_score = ? WHERE id = ?').run(overallScore, challengeId);
+    } else {
+      db.prepare('UPDATE challenges SET opponent_score = ? WHERE id = ?').run(overallScore, challengeId);
+    }
+
+    // Check if both completed (both have answers for all B turns)
+    const updated = db.prepare('SELECT * FROM challenges WHERE id = ?').get(challengeId);
+    const challengerAnswers = db.prepare(
+      'SELECT COUNT(*) as cnt FROM challenge_answers WHERE challenge_id = ? AND user_id = ?'
+    ).get(challengeId, challenge.challenger_id).cnt;
+
+    const opponentAnswers = challenge.opponent_id ? db.prepare(
+      'SELECT COUNT(*) as cnt FROM challenge_answers WHERE challenge_id = ? AND user_id = ?'
+    ).get(challengeId, challenge.opponent_id).cnt : 0;
+
+    if (challengerAnswers >= totalTurns && opponentAnswers >= totalTurns && challenge.opponent_id) {
+      const winnerId = updated.challenger_score > updated.opponent_score ? updated.challenger_id :
+                       updated.opponent_score > updated.challenger_score ? updated.opponent_id : null;
+
+      db.prepare("UPDATE challenges SET status = 'completed', winner_id = ? WHERE id = ?").run(winnerId, challengeId);
+
+      if (winnerId) {
+        db.prepare('UPDATE users SET score = score + 50 WHERE id = ?').run(winnerId);
+      }
+      const loserId = winnerId === updated.challenger_id ? updated.opponent_id : updated.challenger_id;
+      if (loserId) db.prepare('UPDATE users SET score = score + 20 WHERE id = ?').run(loserId);
+
+      db.prepare("INSERT INTO partner_feed (user_id, action, details) VALUES (?, 'challenge_complete', ?)")
+        .run(updated.challenger_id, `情景对战完成！${winnerId === updated.challenger_id ? '赢了' : winnerId ? '输了' : '平局'}《${challenge.course_title}》`);
+    }
+
+    res.json({
+      score,
+      expected,
+      overallScore,
+      totalTurns,
+      completedTurns: allAnswers.length,
+      allComplete: challengerAnswers >= totalTurns && opponentAnswers >= totalTurns
+    });
+  } catch (err) {
+    console.error('Scenario submit error:', err);
+    res.status(500).json({ error: '提交对话失败' });
+  }
 });
 
 // ==================== SERVE SPA ====================
