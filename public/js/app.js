@@ -2963,15 +2963,37 @@ const App = {
           </div>
         </div>
 
-        <div class="activity-card">
-          <div class="activity-header">
-            <div class="activity-title">
-              <span>📊</span>
-              <span>学习活跃度</span>
+        <div class="checkin-card" id="checkin-root">
+          <div class="checkin-header">
+            <div class="checkin-tabs">
+              <button class="checkin-tab active" data-tab="streak" onclick="App._switchCheckinTab('streak')">连续打卡</button>
+              <button class="checkin-tab" data-tab="total" onclick="App._switchCheckinTab('total')">累计打卡</button>
             </div>
-            ${stats.totalScore ? `<div class="activity-stats" id="activity-stats-summary">加载中...</div>` : ''}
+            <div class="streak-display">
+              <div class="streak-number">
+                <span class="number" id="checkin-number">0</span>
+                <span class="heart-icon" id="checkin-heart">💔</span>
+              </div>
+              <div class="streak-label" id="checkin-label">天连续打卡</div>
+            </div>
+            <div class="motivation-bubble" id="checkin-motivation">加载中...</div>
           </div>
-          <div id="heatmap-container">加载中...</div>
+          <div class="challenge-card" id="checkin-challenge"></div>
+          <div class="calendar-section" id="checkin-calendar-section">
+            <div class="calendar-header">
+              <button class="calendar-nav-btn" onclick="App._navigateCheckinCalendar(-1)">◀</button>
+              <span class="calendar-month-label" id="checkin-month-label">6月 2026</span>
+              <button class="calendar-nav-btn" onclick="App._navigateCheckinCalendar(1)">▶</button>
+            </div>
+            <div class="calendar-weekdays">
+              <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </div>
+          <div class="makeup-bar" id="makeupBar" style="display:none;">
+            <span class="makeup-hint" id="makeupHint">请选择你想要补卡的日期</span>
+            <button class="btn btn-sm btn-outline" onclick="App._cancelMakeup()">取消补卡</button>
+          </div>
         </div>
 
         <div class="card mb-16" style="margin-top:16px;">
@@ -2999,8 +3021,11 @@ const App = {
         </div>
       `;
 
-      // Load activity data for heatmap
-      this._loadHeatmap();
+      // Load checkin data
+      this._loadCheckin();
+
+      // Auto checkin today (silently)
+      API.checkinToday().catch(() => {});
 
       // Load assessment history
       try {
@@ -3026,143 +3051,336 @@ const App = {
     }
   },
 
-  async _loadHeatmap() {
+  // ==================== Checkin Calendar ====================
+  _checkinTab: 'streak', // 'streak' | 'total'
+  _checkinData: null,
+  _makeupMode: false,
+  _makeupSelectedDate: null,
+
+  motivationTexts: {
+    0: '💪 一息尚存，重新点燃心火吧！',
+    1: '🔥 好的开始！坚持下去！',
+    3: '🎉 连续3天！你已经迈出了第一步！',
+    7: '🌟 连续7天！习惯正在养成！',
+    14: '⚡ 连续14天！你已经超过大多数人了！',
+    21: '🏆 连续21天！新习惯已经养成！',
+    30: '👑 连续30天！你是真正的粤语达人！',
+  },
+
+  _getMotivation(streak) {
+    const thresholds = Object.keys(this.motivationTexts).map(Number).sort((a, b) => b - a);
+    for (const t of thresholds) {
+      if (streak >= t) return this.motivationTexts[t];
+    }
+    return this.motivationTexts[0];
+  },
+
+  async _loadCheckin() {
     try {
-      this._activityData = await API.getActivity(this._calendarYear, this._calendarMonth);
-      this._renderHeatmap();
+      this._checkinData = await API.getCheckin(this._calendarYear, this._calendarMonth);
+      this._renderCheckin();
     } catch (e) {
-      const container = document.getElementById('heatmap-container');
-      if (container) container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">活跃度数据加载失败</p>';
+      console.error('Checkin load error:', e);
+      const grid = document.getElementById('calendarGrid');
+      if (grid) grid.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">打卡数据加载失败</p>';
     }
   },
 
-  _renderHeatmap() {
-    const container = document.getElementById('heatmap-container');
-    if (!container || !this._activityData) return;
+  _renderCheckin() {
+    const data = this._checkinData;
+    if (!data) return;
 
-    const data = this._activityData;
-    const year = data.year;
-    const month = data.month;
-    const today = new Date();
-    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    // Update top numbers
+    this._renderCheckinHeader(data);
+    // Update challenge
+    this._renderCheckinChallenge(data);
+    // Render calendar
+    this._renderCheckinCalendar(data);
+    // Show Ada
+    this._showAdaOnCheckin(data);
+  },
 
-    // Update stats
-    const statsEl = document.getElementById('activity-stats-summary');
-    if (statsEl) {
-      statsEl.innerHTML = `本月完成 <strong>${data.total_courses}</strong> 课 · <span class="stat-streak">🔥 连续学习 <strong>${data.streak_days}</strong> 天</span>`;
+  _renderCheckinHeader(data) {
+    const displayValue = this._checkinTab === 'streak' ? data.streakDays : data.totalDays;
+    const labelText = this._checkinTab === 'streak' ? '天连续打卡' : '天累计打卡';
+
+    const numEl = document.getElementById('checkin-number');
+    const heartEl = document.getElementById('checkin-heart');
+    const labelEl = document.getElementById('checkin-label');
+    const motivationEl = document.getElementById('checkin-motivation');
+
+    if (numEl) numEl.textContent = displayValue;
+    if (labelEl) labelEl.textContent = labelText;
+
+    if (heartEl) {
+      if (displayValue === 0) {
+        heartEl.textContent = '💔';
+        heartEl.className = 'heart-icon broken';
+      } else {
+        heartEl.textContent = '❤️';
+        heartEl.className = 'heart-icon';
+      }
     }
 
-    // First day of month (0=Sun, 1=Mon, ...)
-    const firstDay = new Date(year, month - 1, 1).getDay();
-    // Offset to start with Monday: Sun→6, Mon→0, Tue→1, ...
-    const offset = firstDay === 0 ? 6 : firstDay - 1;
-    const daysInMonth = new Date(year, month, 0).getDate();
-
-    // Build grid cells
-    let cellsHtml = '';
-    // Empty cells before month start
-    for (let i = 0; i < offset; i++) {
-      cellsHtml += '<div class="heatmap-cell empty"></div>';
+    if (motivationEl) {
+      motivationEl.textContent = this._getMotivation(data.streakDays);
     }
 
-    const dailyMap = {};
-    (data.daily_activity || []).forEach(d => { dailyMap[d.day] = d; });
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const activity = dailyMap[day];
-      const count = activity ? activity.count : 0;
-      const minutes = activity ? activity.minutes : 0;
-
-      // Color mapping per prompt spec
-      let bgColor = '#ebedf0';
-      if (count === 1) bgColor = '#b7e4c7';
-      else if (count === 2) bgColor = '#52b788';
-      else if (count >= 3 && count <= 4) bgColor = '#2d6a4f';
-      else if (count >= 5) bgColor = '#1b4332';
-
-      const isToday = (year === today.getFullYear() && month === (today.getMonth() + 1) && day === today.getDate());
-      const todayClass = isToday ? ' today' : '';
-      const tooltipText = `${year}年${month}月${day}日 · ${count > 0 ? `学习了${count}课 · 用时${minutes}分钟` : '未学习'}`;
-
-      cellsHtml += `<div class="heatmap-cell${todayClass}" style="background:${bgColor};" data-day="${day}" data-year="${year}" data-month="${month}" title="${tooltipText}"><span class="tooltip-text">${tooltipText}</span></div>`;
-    }
-
-    container.innerHTML = `
-      <div class="month-navigator">
-        <button class="nav-btn" onclick="App._navigateCalendar(-1)">◀</button>
-        <span class="month-label">${year}年${monthNames[month - 1]}</span>
-        <button class="nav-btn" onclick="App._navigateCalendar(1)">▶</button>
-      </div>
-      <div class="heatmap-labels">
-        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
-      </div>
-      <div class="heatmap-grid" id="heatmapGrid">
-        ${cellsHtml}
-      </div>
-      <div class="heatmap-legend">
-        <span>少</span>
-        <span class="legend-box" style="background:#ebedf0"></span>
-        <span class="legend-box" style="background:#b7e4c7"></span>
-        <span class="legend-box" style="background:#52b788"></span>
-        <span class="legend-box" style="background:#2d6a4f"></span>
-        <span class="legend-box" style="background:#1b4332"></span>
-        <span>多</span>
-      </div>
-      <div class="day-detail-panel" id="dayDetailPanel">
-        <div id="dayDetailContent"></div>
-      </div>
-    `;
-
-    // Attach click handlers to cells
-    document.querySelectorAll('#heatmapGrid .heatmap-cell:not(.empty)').forEach(cell => {
-      cell.addEventListener('click', () => {
-        const day = parseInt(cell.dataset.day);
-        const y = parseInt(cell.dataset.year);
-        const m = parseInt(cell.dataset.month);
-        this._showDayDetail(y, m, day);
-      });
+    // Update tab styles
+    document.querySelectorAll('.checkin-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.tab === this._checkinTab);
     });
   },
 
-  async _navigateCalendar(delta) {
+  _renderCheckinChallenge(data) {
+    const container = document.getElementById('checkin-challenge');
+    if (!container) return;
+
+    const challenge = (data.challenges || [])[0];
+    if (!challenge) return;
+
+    const progress = Math.min(challenge.progress, challenge.target);
+    const pct = Math.round((progress / challenge.target) * 100);
+    const isComplete = progress >= challenge.target;
+
+    container.innerHTML = `
+      <div class="challenge-header">
+        <span class="challenge-icon">🎯</span>
+        <span class="challenge-title">${challenge.name}</span>
+      </div>
+      ${isComplete ? `
+        <div class="challenge-complete">🎉 挑战完成！奖励已解锁 🎁</div>
+      ` : `
+        <div class="challenge-progress">
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${pct}%"></div>
+            <div class="progress-start">●</div>
+            <div class="progress-end">${challenge.reward}</div>
+          </div>
+          <span class="challenge-target">${challenge.target}天</span>
+        </div>
+      `}
+    `;
+  },
+
+  _renderCheckinCalendar(data) {
+    const grid = document.getElementById('calendarGrid');
+    if (!grid) return;
+
+    const year = data.year;
+    const month = data.month;
+    const today = new Date();
+    const todayY = today.getFullYear();
+    const todayM = today.getMonth() + 1;
+    const todayD = today.getDate();
+
+    // Update month label
+    const label = document.getElementById('checkin-month-label');
+    if (label) {
+      label.textContent = `${month}月 ${year}`;
+    }
+
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Build daily map
+    const dailyMap = {};
+    (data.daily || []).forEach(d => { dailyMap[d.day] = d; });
+
+    let cellsHtml = '';
+    // Empty cells before month start
+    for (let i = 0; i < firstDay; i++) {
+      cellsHtml += '<div class="calendar-cell empty"></div>';
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayData = dailyMap[day];
+      const isToday = (year === todayY && month === todayM && day === todayD);
+      const isFuture = (year > todayY) || (year === todayY && month > todayM) || (year === todayY && month === todayM && day > todayD);
+      const isPast = !isToday && !isFuture;
+
+      let cellClass = 'calendar-cell';
+      let cellContent = day;
+      let clickHandler = '';
+
+      if (isToday) {
+        cellClass += ' today';
+        cellContent = '今';
+      } else if (dayData && dayData.checked) {
+        if (dayData.isMakeup) {
+          cellClass += ' made-up';
+          cellContent = '✓';
+        } else {
+          cellClass += ' checked';
+          cellContent = '✓';
+        }
+      } else if (isPast && data.canMakeUp) {
+        cellClass += ' can-makeup';
+        cellContent = '补';
+        clickHandler = `onclick="App._onMakeupClick(${year},${month},${day})"`;
+      } else if (isFuture) {
+        cellClass += ' future';
+      }
+
+      // Highlight if in makeup mode and this is selected
+      if (this._makeupMode && this._makeupSelectedDate && 
+          this._makeupSelectedDate.year === year && 
+          this._makeupSelectedDate.month === month && 
+          this._makeupSelectedDate.day === day) {
+        cellClass += ' selected';
+      }
+
+      cellsHtml += `<div class="${cellClass}" ${clickHandler}>${cellContent}</div>`;
+    }
+
+    grid.innerHTML = cellsHtml;
+
+    // Show/hide makeup bar
+    this._updateMakeupBar();
+  },
+
+  _switchCheckinTab(tab) {
+    this._checkinTab = tab;
+    if (this._checkinData) {
+      this._renderCheckinHeader(this._checkinData);
+    }
+  },
+
+  async _navigateCheckinCalendar(delta) {
     this._calendarMonth += delta;
     if (this._calendarMonth < 1) { this._calendarMonth = 12; this._calendarYear--; }
     if (this._calendarMonth > 12) { this._calendarMonth = 1; this._calendarYear++; }
-    const container = document.getElementById('heatmap-container');
-    if (container) container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">加载中...</div>';
-    await this._loadHeatmap();
+    this._makeupMode = false;
+    this._makeupSelectedDate = null;
+    await this._loadCheckin();
   },
 
-  _showDayDetail(year, month, day) {
-    const panel = document.getElementById('dayDetailPanel');
-    const content = document.getElementById('dayDetailContent');
-    if (!panel || !content) return;
-
-    const data = this._activityData;
-    if (!data) return;
-
-    const activity = (data.daily_activity || []).find(d => d.day === day);
-    const count = activity ? activity.count : 0;
-    const minutes = activity ? activity.minutes : 0;
-    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-    const dateStr = `${year}年${monthNames[month - 1]}${day}日`;
-
-    if (count === 0) {
-      content.innerHTML = `<h4>📅 ${dateStr}</h4><div class="detail-item">😴 当天未学习，休息一下也很重要哦</div>`;
+  _onMakeupClick(year, month, day) {
+    if (!this._makeupMode) {
+      // Enter makeup mode
+      this._makeupMode = true;
+      this._makeupSelectedDate = { year, month, day };
+      this._renderCheckinCalendar(this._checkinData);
+      // Ada says something
+      this._showAdaCheckin('thinking', '補卡會扣你啲積分㗎喎，下次記得準時學啦！😜');
+    } else if (this._makeupSelectedDate && 
+               this._makeupSelectedDate.year === year &&
+               this._makeupSelectedDate.month === month &&
+               this._makeupSelectedDate.day === day) {
+      // Confirm makeup
+      this._confirmMakeup(year, month, day);
     } else {
-      content.innerHTML = `
-        <h4>📅 ${dateStr}</h4>
-        <div class="detail-item">📚 完成了 <strong>${count}</strong> 门课程</div>
-        <div class="detail-item">⏱ 总学习时长约 <strong>${minutes}</strong> 分钟</div>
-      `;
+      // Select different day
+      this._makeupSelectedDate = { year, month, day };
+      this._renderCheckinCalendar(this._checkinData);
+    }
+  },
+
+  async _confirmMakeup(year, month, day) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    if (!confirm(`确认补卡 ${month}月${day}日 吗？将消耗 10 积分。`)) return;
+
+    try {
+      const result = await API.makeupCheckin(dateStr);
+      if (result.success) {
+        // Confetti animation
+        this._triggerConfetti();
+        // Show Ada celebration
+        this._showAdaCheckin('laugh', result.adaText);
+        // Reload data
+        this._makeupMode = false;
+        this._makeupSelectedDate = null;
+        await this._loadCheckin();
+      }
+    } catch (e) {
+      alert(e.message || '补卡失败');
+    }
+  },
+
+  _cancelMakeup() {
+    this._makeupMode = false;
+    this._makeupSelectedDate = null;
+    this._renderCheckinCalendar(this._checkinData);
+    this._updateMakeupBar();
+  },
+
+  _updateMakeupBar() {
+    const bar = document.getElementById('makeupBar');
+    const hint = document.getElementById('makeupHint');
+    if (!bar || !hint) return;
+
+    if (this._makeupMode && this._makeupSelectedDate) {
+      bar.style.display = 'flex';
+      hint.innerHTML = `已选择 <strong>${this._makeupSelectedDate.month}月${this._makeupSelectedDate.day}日</strong> 补卡 · 消耗 <span class="cost">10积分</span> · 再次点击确认`;
+    } else {
+      bar.style.display = 'none';
+    }
+  },
+
+  _showAdaOnCheckin(data) {
+    // Remove existing ada bubble
+    const existing = document.getElementById('ada-checkin-bubble');
+    if (existing) existing.remove();
+
+    const bubble = document.createElement('div');
+    bubble.id = 'ada-checkin-bubble';
+    bubble.className = 'ada-checkin-bubble';
+
+    const streak = data.streakDays;
+    let mood = 'sad';
+    let text = '';
+
+    if (streak === 0) {
+      mood = 'sad';
+      text = '唔緊要！今日開始重新黎過，我陪你一齊學！💪';
+    } else if (streak >= 3 && streak < 7) {
+      mood = 'proud';
+      text = `連續${streak}日！犀利喎！仲有${7 - streak}日就一星期啦，加油！`;
+    } else if (streak >= 7) {
+      mood = 'happy';
+      text = `連續${streak}日打卡！你嘅粵語越嚟越好！🌟`;
+    } else {
+      mood = 'happy';
+      text = '早晨！今日又開始新嘅學習啦！';
     }
 
-    if (this._selectedDay === `${year}-${month}-${day}` && panel.classList.contains('show')) {
-      panel.classList.remove('show');
-      this._selectedDay = null;
-    } else {
-      panel.classList.add('show');
-      this._selectedDay = `${year}-${month}-${day}`;
+    this._showAdaCheckin(mood, text);
+  },
+
+  _showAdaCheckin(mood, text) {
+    const existing = document.getElementById('ada-checkin-bubble');
+    if (existing) existing.remove();
+
+    const moodEmoji = { sad: '😿', happy: '😸', proud: '🦁', thinking: '🤔', laugh: '😹' };
+
+    const bubble = document.createElement('div');
+    bubble.id = 'ada-checkin-bubble';
+    bubble.className = 'ada-checkin-bubble';
+    bubble.innerHTML = `
+      <div class="ada-checkin-speech">${text}</div>
+      <div class="ada-checkin-avatar mood-${mood}">${moodEmoji[mood] || '🦁'}</div>
+    `;
+    document.body.appendChild(bubble);
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      if (bubble.parentNode) bubble.remove();
+    }, 5000);
+  },
+
+  _triggerConfetti() {
+    const colors = ['#e8a838', '#2d6a4f', '#FF6B35', '#4ECDC4', '#45B7D1', '#FFD166'];
+    for (let i = 0; i < 30; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + '%';
+      piece.style.top = -(Math.random() * 100) + 'px';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.animationDelay = Math.random() * 1.5 + 's';
+      piece.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+      document.body.appendChild(piece);
+      setTimeout(() => { if (piece.parentNode) piece.remove(); }, 3500);
     }
   },
 };

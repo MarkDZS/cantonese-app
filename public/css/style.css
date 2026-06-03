@@ -1819,58 +1819,209 @@ a { text-decoration: none; color: var(--primary); }
   color: var(--text-light);
 }
 
-/* ===================== Activity Heatmap (GitHub-style) ===================== */
-.activity-card {
+/* ===================== Checkin Calendar ===================== */
+.checkin-card {
   background: #ffffff;
   border-radius: 16px;
-  padding: 20px 20px 16px;
+  padding: 0;
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  overflow: hidden;
+  margin-bottom: 16px;
 }
 
-.activity-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
+/* ===== Checkin Header (Top Section) ===== */
+.checkin-header {
+  background: linear-gradient(135deg, #e8f5e9, #e0f2f1);
+  padding: 20px 20px 16px;
+  text-align: center;
 }
 
-.activity-title {
+.checkin-tabs {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 16px;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 16px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 10px;
+  padding: 3px;
+  display: inline-flex;
+}
+
+.checkin-tab {
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
   font-weight: 600;
-  color: #1a1a2e;
+  color: #6b7280;
+  transition: all 0.25s;
+  border: none;
+  background: transparent;
+  font-family: var(--font);
 }
 
-.activity-stats {
+.checkin-tab.active {
+  background: white;
+  color: #2d6a4f;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.checkin-tab:hover {
+  color: #2d6a4f;
+}
+
+/* Streak Display */
+.streak-display {
+  margin-bottom: 12px;
+}
+
+.streak-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.streak-number .number {
+  font-size: 48px;
+  font-weight: 900;
+  color: #2d6a4f;
+  line-height: 1;
+}
+
+.streak-number .heart-icon {
+  font-size: 28px;
+  animation: heartBeat 1.2s ease-in-out infinite;
+}
+
+.streak-number .heart-icon.broken {
+  animation: none;
+}
+
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.streak-label {
+  font-size: 15px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+/* Motivation Bubble */
+.motivation-bubble {
+  display: inline-block;
+  background: white;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-size: 14px;
+  color: #2d6a4f;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* ===== Challenge Card ===== */
+.challenge-card {
+  background: #fef9e7;
+  border-radius: 0;
+  padding: 16px 20px;
+  margin: 0;
+  border-top: 1px solid #f0e6d3;
+  border-bottom: 1px solid #f0e6d3;
+}
+
+.challenge-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: #6b7280;
-  margin-left: auto;
+  margin-bottom: 10px;
 }
 
-.activity-stats strong {
-  color: #2d6a4f;
+.challenge-icon {
+  font-size: 18px;
+}
+
+.challenge-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.challenge-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-track {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  background: #e8e8e8;
+  border-radius: 5px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, #e8a838, #f6c15b);
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+
+.progress-start {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 22px;
+  height: 22px;
+  background: #e8a838;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 10px;
   font-weight: 700;
 }
 
-.activity-stats .stat-streak strong {
-  color: #e8a838;
+.progress-end {
+  position: absolute;
+  right: -10px;
+  top: -8px;
+  font-size: 18px;
 }
 
-/* Month Navigator */
-.month-navigator {
+.challenge-target {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.challenge-complete {
+  text-align: center;
+  padding: 4px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2d6a4f;
+}
+
+/* ===== Calendar Section ===== */
+.calendar-section {
+  padding: 16px 20px 20px;
+}
+
+.calendar-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 14px;
 }
 
-.nav-btn {
+.calendar-nav-btn {
   background: none;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -1882,157 +2033,221 @@ a { text-decoration: none; color: var(--primary); }
   font-family: var(--font);
 }
 
-.nav-btn:hover {
+.calendar-nav-btn:hover {
   background: #f3f4f6;
   color: #2d6a4f;
   border-color: #2d6a4f;
 }
 
-.month-label {
+.calendar-month-label {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: #1a1a2e;
+  min-width: 100px;
+  text-align: center;
 }
 
-/* Heatmap Grid */
-.heatmap-labels {
+/* Weekday Headers */
+.calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   text-align: center;
-  font-size: 11px;
-  color: #9ca3af;
-  margin-bottom: 4px;
-  padding: 0 2px;
+  margin-bottom: 6px;
 }
 
-.heatmap-grid {
+.calendar-weekdays span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  padding: 6px 0;
+}
+
+/* Calendar Grid */
+.calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: 4px;
 }
 
-.heatmap-cell {
+.calendar-cell {
   aspect-ratio: 1;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
   position: relative;
+  transition: all 0.15s;
+  background: #f8f9fa;
+  color: #1a1a2e;
   min-width: 0;
 }
 
-.heatmap-cell:hover {
-  transform: scale(1.3);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  z-index: 2;
+.calendar-cell.empty {
+  background: transparent;
 }
 
-.heatmap-cell.today {
-  border: 2px solid #e8a838;
-  box-shadow: 0 0 0 1px #e8a838;
-}
-
-.heatmap-cell.empty {
-  cursor: default;
-  background: transparent !important;
-}
-
-.heatmap-cell.empty:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-/* Tooltip */
-.heatmap-cell .tooltip-text {
-  display: none;
-  position: absolute;
-  bottom: 120%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1a1a2e;
+/* Today */
+.calendar-cell.today {
+  background: #2d6a4f;
   color: white;
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  white-space: nowrap;
-  z-index: 10;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(45,106,79,0.3);
+}
+
+/* Checked (green bg + checkmark) */
+.calendar-cell.checked {
+  background: #b7e4c7;
+  color: #2d6a4f;
+}
+
+/* Can Makeup (gray bg + "补" text) */
+.calendar-cell.can-makeup {
+  background: #f0f0f0;
+  color: #e8a838;
+  cursor: pointer;
+  border: 1.5px dashed #e8a838;
+}
+
+.calendar-cell.can-makeup:hover {
+  background: #fef3c7;
+  border-style: solid;
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(232,168,56,0.3);
+}
+
+/* Made-up (orange bg + checkmark) */
+.calendar-cell.made-up {
+  background: #ffe0b2;
+  color: #e65100;
+  border: 1.5px solid #e8a838;
+}
+
+/* Future date */
+.calendar-cell.future {
+  color: #d1d5db;
+}
+
+/* Selected for makeup */
+.calendar-cell.selected {
+  background: #e8a838;
+  color: white;
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(232,168,56,0.4);
+}
+
+/* Makeup bar at bottom */
+.makeup-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #fffcf9;
+  border-top: 1px solid #f0e6d3;
+  gap: 12px;
+}
+
+.makeup-hint {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.makeup-hint .cost {
+  font-weight: 700;
+  color: #e8a838;
+}
+
+/* ===== Ada Bubble on Checkin Page ===== */
+.ada-checkin-bubble {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  z-index: 200;
+  animation: slideUp 0.5s ease;
+}
+
+.ada-checkin-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFD166, #FF6B35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  box-shadow: 0 4px 16px rgba(255,107,53,0.4);
+  flex-shrink: 0;
+  transition: transform 0.3s;
+}
+
+.ada-checkin-avatar.mood-sad {
+  background: linear-gradient(135deg, #b0bec5, #78909c);
+}
+
+.ada-checkin-avatar.mood-happy {
+  background: linear-gradient(135deg, #FFD166, #FF6B35);
+}
+
+.ada-checkin-avatar.mood-proud {
+  background: linear-gradient(135deg, #e8a838, #FF6B35);
+  box-shadow: 0 4px 20px rgba(232,168,56,0.6);
+}
+
+.ada-checkin-avatar.mood-thinking {
+  background: linear-gradient(135deg, #64b5f6, #42a5f5);
+}
+
+.ada-checkin-avatar.mood-laugh {
+  background: linear-gradient(135deg, #81c784, #4caf50);
+  box-shadow: 0 4px 20px rgba(76,175,80,0.5);
+}
+
+.ada-checkin-speech {
+  background: white;
+  border-radius: 16px 16px 16px 4px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  max-width: 260px;
+  font-size: 13px;
+  color: #1a1a2e;
+  line-height: 1.5;
+}
+
+/* Confetti animation for makeup success */
+@keyframes confetti-fall {
+  0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+.confetti-piece {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  z-index: 999;
+  animation: confetti-fall 2s ease-in forwards;
   pointer-events: none;
 }
 
-.heatmap-cell:hover .tooltip-text {
-  display: block;
+/* Responsive */
+@media (max-width: 640px) {
+  .ada-checkin-bubble {
+    right: 12px;
+    bottom: 16px;
+  }
+  .ada-checkin-speech {
+    max-width: 200px;
+    font-size: 12px;
+  }
+  .checkin-tab {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
 }
-
-/* Heatmap Legend */
-.heatmap-legend {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  margin-top: 12px;
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.legend-box {
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
-}
-
-/* Day Detail Panel */
-.day-detail-panel {
-  margin-top: 12px;
-  padding: 14px 16px;
-  background: #f8fafb;
-  border-radius: 10px;
-  border-left: 3px solid #2d6a4f;
-  display: none;
-  animation: fadeIn 0.2s ease;
-}
-
-.day-detail-panel.show {
-  display: block;
-}
-
-.day-detail-panel h4 {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2d6a4f;
-  margin-bottom: 8px;
-}
-
-.day-detail-panel .detail-item {
-  font-size: 13px;
-  color: #4b5563;
-  padding: 4px 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Old heatmap kept for backward compat */
-.heatmap {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.heatmap-day {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  background: #EBEDF0;
-}
-
-.heatmap-day.level-1 { background: #FFE0B2; }
-.heatmap-day.level-2 { background: #FFB74D; }
-.heatmap-day.level-3 { background: #FF9800; }
-.heatmap-day.level-4 { background: #F57C00; }
 
 /* ===================== Battle Center ===================== */
 .battle-card {

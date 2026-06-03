@@ -73,6 +73,11 @@ const API = {
   // Activity
   getActivity: (year, month) => API.request('GET', `/api/user/activity?year=${year}&month=${month}`),
 
+  // Checkin
+  getCheckin: (year, month) => API.request('GET', `/api/user/checkin?year=${year}&month=${month}`),
+  checkinToday: () => API.request('POST', '/api/user/checkin/today'),
+  makeupCheckin: (date) => API.request('POST', '/api/user/checkin/makeup', { date }),
+
   // Feed
   getFeed: () => API.request('GET', '/api/feed')
 };

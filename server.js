@@ -44,6 +44,21 @@ try {
   }
 } catch (e) { /* column may already exist */ }
 
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS checkins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      checkin_date TEXT NOT NULL,
+      is_makeup INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, checkin_date)
+    )
+  `);
+  console.log('Migration: checkins table ensured.');
+} catch (e) { /* table may already exist */ }
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -1219,6 +1234,228 @@ app.get('/api/user/activity', requireAuth, (req, res) => {
   } catch (err) {
     console.error('Activity error:', err);
     res.status(500).json({ error: '获取活跃度失败' });
+  }
+});
+
+// ==================== CHECKIN ROUTES ====================
+const motivationTexts = {
+  0: '💪 一息尚存，重新点燃心火吧！',
+  1: '🔥 好的开始！坚持下去！',
+  3: '🎉 连续3天！你已经迈出了第一步！',
+  7: '🌟 连续7天！习惯正在养成！',
+  14: '⚡ 连续14天！你已经超过大多数人了！',
+  21: '🏆 连续21天！新习惯已经养成！',
+  30: '👑 连续30天！你是真正的粤语达人！',
+};
+
+function getMotivation(streak) {
+  const thresholds = Object.keys(motivationTexts).map(Number).sort((a, b) => b - a);
+  for (const t of thresholds) {
+    if (streak >= t) return motivationTexts[t];
+  }
+  return motivationTexts[0];
+}
+
+// GET /api/user/checkin?year=2026&month=6
+app.get('/api/user/checkin', requireAuth, (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const month = parseInt(req.query.month) || (new Date().getMonth() + 1);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // Get user stats
+    const user = db.prepare('SELECT streak_days, score FROM users WHERE id = ?').get(userId);
+    const streakDays = user ? user.streak_days : 0;
+
+    // Get all checkin records for this month
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    const checkins = db.prepare(
+      'SELECT checkin_date, is_makeup FROM checkins WHERE user_id = ? AND checkin_date >= ? AND checkin_date <= ?'
+    ).all(userId, monthStart, monthEnd);
+
+    // Get completed courses per day for this month
+    const coursesPerDay = db.prepare(`
+      SELECT CAST(strftime('%d', completed_at) AS INTEGER) as day,
+             COUNT(*) as count
+      FROM user_courses
+      WHERE user_id = ? AND status = 'completed'
+        AND strftime('%Y-%m', completed_at) = ?
+      GROUP BY strftime('%d', completed_at)
+    `).all(userId, `${year}-${String(month).padStart(2, '0')}`);
+
+    // Build checkin map
+    const checkinMap = {};
+    checkins.forEach(c => { checkinMap[c.checkin_date] = c.is_makeup === 1; });
+
+    const courseMap = {};
+    coursesPerDay.forEach(c => { courseMap[c.day] = c.count; });
+
+    // Build daily array
+    const daily = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const hasCourse = (courseMap[d] || 0) > 0;
+      const isMakeup = checkinMap[dateStr] === true;
+      const checked = hasCourse || isMakeup;
+      daily.push({
+        day: d,
+        checked,
+        isMakeup: isMakeup && !hasCourse, // only mark as makeup if no real course that day
+        courseCount: courseMap[d] || 0
+      });
+    }
+
+    // Total checked days
+    const totalDays = daily.filter(d => d.checked).length;
+
+    // Can makeup: any unchecked day before today (with score cost)
+    const today = new Date();
+    const canMakeUp = true; // Allow makeup if user has enough points
+    const todayDateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    const isSameMonth = year === today.getFullYear() && month === (today.getMonth() + 1);
+
+    // 3-day challenge
+    const challenges = [
+      { id: 1, name: '3天打卡挑战', progress: Math.min(streakDays, 3), target: 3, reward: '🎁' }
+    ];
+
+    res.json({
+      year,
+      month,
+      streakDays,
+      totalDays,
+      canMakeUp: user ? user.score >= 10 : false,
+      daily,
+      challenges,
+      motivation: getMotivation(streakDays)
+    });
+  } catch (err) {
+    console.error('Checkin error:', err);
+    res.status(500).json({ error: '获取打卡数据失败' });
+  }
+});
+
+// POST /api/user/checkin/today - daily auto checkin
+app.post('/api/user/checkin/today', requireAuth, (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+    // Check if already checked in today
+    const existing = db.prepare('SELECT id FROM checkins WHERE user_id = ? AND checkin_date = ?').get(userId, dateStr);
+    if (existing) {
+      const user = db.prepare('SELECT streak_days FROM users WHERE id = ?').get(userId);
+      return res.json({
+        checked: true,
+        streakDays: user.streak_days,
+        adaMood: 'happy',
+        adaText: '今日已經簽到咗啦！繼續努力學粵語！'
+      });
+    }
+
+    // Insert checkin
+    db.prepare('INSERT OR IGNORE INTO checkins (user_id, checkin_date, is_makeup) VALUES (?, ?, 0)').run(userId, dateStr);
+
+    // Update streak
+    const user = db.prepare('SELECT streak_days FROM users WHERE id = ?').get(userId);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
+
+    const yesterdayCheckin = db.prepare('SELECT id FROM checkins WHERE user_id = ? AND checkin_date = ?').get(userId, yesterdayStr);
+    const yesterdayCourse = db.prepare(
+      "SELECT COUNT(*) as cnt FROM user_courses WHERE user_id = ? AND status = 'completed' AND date(completed_at) = ?"
+    ).get(userId, yesterdayStr);
+
+    let newStreak;
+    if (yesterdayCheckin || (yesterdayCourse && yesterdayCourse.cnt > 0)) {
+      newStreak = (user.streak_days || 0) + 1;
+    } else {
+      newStreak = 1;
+    }
+
+    db.prepare('UPDATE users SET streak_days = ?, last_active = CURRENT_TIMESTAMP WHERE id = ?').run(newStreak, userId);
+
+    const adaTexts = {
+      1: '早晨！今日又開始新嘅學習啦！',
+      3: '連續3日！犀利喎！',
+      7: '一星期啦！你嘅粵語越嚟越好！',
+    };
+
+    let adaText = adaTexts[newStreak] || '今日一齊學粵語，好開心！';
+
+    res.json({
+      checked: true,
+      streakDays: newStreak,
+      adaMood: newStreak >= 3 ? 'proud' : 'happy',
+      adaText
+    });
+  } catch (err) {
+    console.error('Checkin today error:', err);
+    res.status(500).json({ error: '签到失败' });
+  }
+});
+
+// POST /api/user/checkin/makeup - makeup a missed day
+app.post('/api/user/checkin/makeup', requireAuth, (req, res) => {
+  try {
+    const userId = req.session.userId;
+    const { date } = req.body; // "YYYY-MM-DD"
+
+    if (!date) {
+      return res.status(400).json({ error: '请提供补卡日期' });
+    }
+
+    // Check user has enough points (10 points per makeup)
+    const COST = 10;
+    const user = db.prepare('SELECT score, streak_days FROM users WHERE id = ?').get(userId);
+    if (user.score < COST) {
+      return res.status(400).json({ error: '积分不足，每次补卡需要10积分' });
+    }
+
+    // Check date is in the past and not today
+    const targetDate = new Date(date + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (targetDate >= today) {
+      return res.status(400).json({ error: '只能补卡过去未签到的日期' });
+    }
+
+    // Check if already checked in
+    const existingCheckin = db.prepare('SELECT id FROM checkins WHERE user_id = ? AND checkin_date = ?').get(userId, date);
+    if (existingCheckin) {
+      return res.status(400).json({ error: '该日期已签到' });
+    }
+
+    // Check if there's already a course completed that day
+    const existingCourse = db.prepare(
+      "SELECT COUNT(*) as cnt FROM user_courses WHERE user_id = ? AND status = 'completed' AND date(completed_at) = ?"
+    ).get(userId, date);
+    if (existingCourse && existingCourse.cnt > 0) {
+      return res.status(400).json({ error: '该日期已有学习记录，无需补卡' });
+    }
+
+    // Deduct points and insert makeup checkin
+    db.prepare('UPDATE users SET score = score - ? WHERE id = ?').run(COST, userId);
+    db.prepare('INSERT INTO checkins (user_id, checkin_date, is_makeup) VALUES (?, ?, 1)').run(userId, date);
+
+    // Recalculate streak (conservative approach: just add 1)
+    const newStreak = user.streak_days + 1;
+    db.prepare('UPDATE users SET streak_days = ?, last_active = CURRENT_TIMESTAMP WHERE id = ?').run(newStreak, userId);
+
+    res.json({
+      success: true,
+      costPoints: COST,
+      newStreakDays: newStreak,
+      adaMood: 'laugh',
+      adaText: `補卡成功！你而家連續打卡 ${newStreak} 日啦！🎉`
+    });
+  } catch (err) {
+    console.error('Makeup error:', err);
+    res.status(500).json({ error: '补卡失败' });
   }
 });
 
